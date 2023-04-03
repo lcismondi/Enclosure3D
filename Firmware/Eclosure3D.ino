@@ -3,35 +3,58 @@
 #include <DHT.h>
 #include <EEPROM.h>
 
-#define SW 14
-#define DT 13
-#define CLK 12
+#define SW 13
+#define DT 12
+#define CLK 16
 
-#define DHTPIN 0
+#define LUZ 15
+#define VT1 0
+#define VT2 14          //Pin 14 comparte con eeprom? Posible error
+
+#define DHTPIN 2
 
 #define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
 
 /*  Utiliza el valor de GPIO
-   D2   04  SDA (oled)
-   D3   00  CS2
-   D8   15  CS
-   D7   13  MOSI
-   D6   12  MISO
-   SCL  14  CLK
-   D0   16  RST (oled)
-   A0       ADC
 
-   CTS
-   DTR
-   D1   05
-   TX   01
-   RX   03
-   RST
-   SDA  02
-   EN
+  A0   A0   ADC
+  NC   Reservado
+  NC   Reservado
+  S3   10   GPIO
+  S2   09   Reservado
+  S1   08   Reservado
+  SC   11   Reservado
+  SO   07   Reservado
+  SK   06   Reservado
+  GND
+  3.3V
+  EN   Enable
+  RST  Reset
+  GND
+  VIN
 
+
+  D0   16   GPIO*
+  D1   05   SCL(I2C)
+  D2   04   SDA (I2C)
+  D3   00   GPIO (pull up)*
+  D4   02   GPIO (pull up)[LED]
+  3.3V
+  GND
+  D5  14    SLCK (SPI)
+  D6  12    MISO (SPI)
+  D7  13    MOSI (SPI)
+  D8  15    CS (SPI)
+  RX  03
+  TX  01
+  GND
+  3.3V
+
+
+  Caracterítica especiales
 */
 
+//NO USA EL RESET, VER COMO SACARLO!
 U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C display(U8G2_R0, /* reset=*/ 16, /* clock=*/ 5, /* data=*/ 4);
 /*
   U8G2_R0  No rotation, landscape
@@ -47,18 +70,26 @@ int counter = 0;
 int currentStateCLK;
 int currentStateDT;
 int lastStateCLK;
-String currentDir = "";
-unsigned long lastButtonPress = 0;
-bool upClk = LOW;
-bool downClk = LOW;
-bool newBtn = LOW;
+
+//String currentDir = "";
+unsigned long lastButtonPress = 0;        //Antirebote botón al presionar
+unsigned long lastButtonRelease = 0;      //Antirebote botón al soltar
+unsigned long lastRotaryEncoder = 0;      //Antirebote rotary
+unsigned long tiempoInicio = 0;           //Base de tiempo del reloj
+unsigned long tiempoEncendido = 0;        //Sleep mode
+
+bool upClk     = LOW;
+bool downClk   = LOW;
+bool newBtn    = LOW;                   //Flag de presión de botón
+bool oldBtn    = HIGH;                  //Flag de liberación de botón
+bool flagTimer = LOW;
 
 unsigned long displayTime = 0;          //Tiempo de rotador de pantalla
 int cursorMenu = 0;                     //Indicador menú o carrusel
 int cursorDisplay = 0;                  //Indicador de pantalla rotativa
 int cursorLvl1 = 0;                     //Indicador menú general
-int cursorLvl2 = 1;                     //Indicador submenú
-
+int cursorLvl2 = 1;                     //Indicador submenú siempre inicia en 1
+int countLongPress = 0;                 //Tiempo botón presionado
 
 
 //**********************************************************************
@@ -67,11 +98,12 @@ int cursorLvl2 = 1;                     //Indicador submenú
 const int submenuLength = 5;
 const String menu [][submenuLength] = {
   //CONVERTIR EN UN VECTOR DE VECTORES PARA ENTENDER EL TAMAÑO
-  {"Temperatura", "Set point", "Ripple", "Volver"},
-  {"Reloj",       "Modo", "Tiempo", "Volver"},
+  {"Temperatura", "Set point", "Ripple", "Unidad", "Volver"},
+  {"Reloj",       "Modo", "Tiempo", "Reset", "Volver"},
   {"Ventilacion", "Modo", "Funcion", "Velocidad", "Volver"},
   {"Iluminacion", "Modo", "Alarma", "Brillo", "Volver"},
   {"Wifi",        "Modo", "SSIS", "Nivel", "Volver"},
+  {"Sistema",     "Reiniciar", "Encoder", "Contraste", "Volver"},
   {"Salir"}
 };
 
@@ -82,38 +114,45 @@ float menuVal[menuLength] [submenuLength] = {}; //SE PUEDE COMPLETAR CON LAS VAR
    menuVal[0][0] = Temperatura medida
    menuVal[0][1] = Temperatura seleccionada
    menuVal[0][2] = Ripple
-   menuVal[0][3] = Humedad medida
-   menuVal[0][4] = -
+   menuVal[0][3] = Unidad temperatura
+   menuVal[0][4] = Humedad medida
    menuVal[1][0] = -
-   menuVal[1][1] = Modo reloj (Temporizador/Cronometro/Off)
+   menuVal[1][1] = Modo reloj (Off/Cronometro/Temporizador)
    menuVal[1][2] = Tiempo en milisegundos
-   menuVal[1][3] = -
+   menuVal[1][3] = Reset
    menuVal[1][4] = -
    menuVal[2][0] = -
    menuVal[2][1] = Modo ventilacion (Manual/Automatico)
    menuVal[2][2] = Función ventilación (Progresivo/Simultáneo)
    menuVal[2][3] = Velocidad PWM
    menuVal[2][4] = -
-   menuVal[3][0] = Modo iluminación (On/Off)
-   menuVal[3][1] = Alarma iluminación (On/Off)
-   menuVal[3][2] = Brillo PWM
-   menuVal[3][3] = -
+   menuVal[3][0] = -
+   menuVal[3][1] = Modo iluminación (Off/On)
+   menuVal[3][2] = Alarma iluminación (Off/On)
+   menuVal[3][3] = Brillo PWM
    menuVal[3][4] = -
    menuVal[4][0] = Modo WIFI (Scan/AP)
    menuVal[4][1] = SSID
-   menuVal[4][2] = Porencia dBm
+   menuVal[4][2] = Potencia dBm
    menuVal[4][3] = -
+   menuVal[4][4] = -
+   menuVal[5][0] = -
+   menuVal[5][1] = Reinicio
+   menuVal[5][2] = Sensibilidad rotary encoder
+   menuVal[5][3] = Contraste pantalla
+   menuVal[5][4] = -
 */
 
-const String modoReloj[] = {"OFF", "Temporizador", "Cronometro"};
+const String modoReloj[] = {"OFF", "Cronometro", "Temporizador"};
 const String modoVenti[] = {"Manual", "Automatico"};
-const String modoIlumi[] = {"OFF", "ON"};
-const String modoAlarm[] = {"OFF", "ON"};
 const String funcVenti[] = {"Progresivo", "Simultaneo"};
+const String unidTempe[] = {"C", "F"};
+const String modoSINO[]  = {"NO", "SI"};
+const String modoOFFON[] = {"OFF", "ON"};
 
 
-byte lightPWM = 0;          //Brillo de luz
-int lightStep = 10;         //Pasos del dial de luz
+byte lightPWM = 0;                      //Brillo de luz "on live"
+int lightStep = 10;                     //Pasos del dial de luz
 
 
 //**********************************************************************
@@ -123,20 +162,22 @@ int line0 = 10;             //Primer linea de texto display
 int line1 = 21;             //Segunda linea de texto display
 int line2 = 32;             //Tercera linea de texto display
 int displayRow = 121;       //Flechas de navegación
-int eeAddress = 100;          //Location we want the data to be put.
-
+int eeAddress = 100;        //Location we want the data to be put.
+const int eeOffset = eeAddress; //Dirección desde donde comienza la memoria
 
 //**********************************************************************
 //                          Prototipos
 //**********************************************************************
-void renglones (char, char, char, int);
+void display2 (void);
+void renglones (String, String, String, int);
 void displayLvl1(int);
 void displayLvl2(int, int);
 void displayLvl3(int, int);
 void printHorario (void);
 void printAntihorario (void);
 void printBoton (void);
-
+void progresivo(byte);
+void power(void);
 
 
 
@@ -146,15 +187,20 @@ void setup() {
   pinMode(CLK, INPUT_PULLUP);
   pinMode(DT, INPUT_PULLUP);
   pinMode(SW, INPUT_PULLUP);
+  pinMode(LUZ, OUTPUT);
+  pinMode(VT1, OUTPUT);
+  pinMode(VT2, OUTPUT);
+
   lastStateCLK = digitalRead(CLK);
 
-  //pinMode(LED_BUILTIN, OUTPUT); VER EN QUÉ PIN ESTÁ CONECTADO
+  //pinMode(LED_BUILTIN, OUTPUT); //Pin D0 (16)
 
   display.begin();
   display.setPowerSave(0);
   display.setDrawColor(2);
   display.setFontMode(1);
   display.setFont(u8g2_font_8x13_mf);
+  display.setContrast(255);
   //display.setFont(u8g2_font_7x13B_mr);
   //display.setFont(u8g2_font_unifont_t_cyrillic);
 
@@ -172,32 +218,47 @@ void setup() {
   //**********************************************************************
   //                Cargar de memoria las configuraciones
   //**********************************************************************
-  EEPROM.begin(4096);  //VER SI SE PUEDE EXPANDIR!!!
+  EEPROM.begin(4096);
 
   delay(100);
-  /*
-    Serial.println("Cargando memoria: ");
-    for (int i = 0; i < menuLength; i++) {
-      for (int j = 0; j < submenuLength; j++)
-      {
-        EEPROM.get(eeAddress, menuVal[i][j]);
-        Serial.print(eeAddress);
-        Serial.print(" ");
-        Serial.print(i);
-        Serial.print(" ");
-        Serial.print(j);
-        Serial.print(" ");
-        Serial.println(menuVal[i][j]);
-        eeAddress += sizeof(menuVal[i][j]);
-      }
-    }
 
-    if (eeAddress >= 4096) {
-      Serial.println("Advertencia error overflow memoria EEPROM");
+  Serial.println("Cargando memoria: ");
+  for (int i = 0; i < menuLength; i++) {
+    for (int j = 0; j < submenuLength; j++)
+    {
+      EEPROM.get(eeAddress, menuVal[i][j]);
+      Serial.print(eeAddress);
+      Serial.print(" ");
+      Serial.print(i);
+      Serial.print(" ");
+      Serial.print(j);
+      Serial.print(" ");
+      Serial.println(menuVal[i][j]);
+      eeAddress += sizeof(menuVal[i][j]);
     }
-  */
+  }
 
-  menuVal[0][1] = 45;       //Temperatura seleccionada
+  if (eeAddress >= 4096) {
+    Serial.println("Advertencia error overflow memoria EEPROM");
+  }
+
+  display.setContrast(menuVal[5][3]);
+  lightPWM = menuVal[3][3];
+  analogWrite(LUZ, lightPWM);
+  //analogWrite(VT1, menuVal[2][3]);
+
+  menuVal[0][4] = dht.readHumidity();
+  menuVal[0][0] = dht.readTemperature();
+
+  //Puede ser bloqueante!
+  while (menuVal[0][0] <= -50)
+  {
+    delay(1000);
+    menuVal[0][4] = dht.readHumidity();
+    menuVal[0][0] = dht.readTemperature();
+
+  }
+
 
 }
 
@@ -215,23 +276,30 @@ void loop() {
   {
     if (currentStateCLK == HIGH && currentStateDT == HIGH)
     {
-      counter --;
-      upClk = LOW;
-      downClk = HIGH;
-
+      if (millis() - lastRotaryEncoder > menuVal[5][2])
+      {
+        counter --;
+        upClk = LOW;
+        downClk = HIGH;
+        tiempoEncendido = millis();
+      }
     }
     else if (currentStateCLK == HIGH && currentStateDT == LOW)
     {
-      counter ++;
-      upClk = HIGH;
-      downClk = LOW;
-
+      if (millis() - lastRotaryEncoder > menuVal[5][2] * 2)
+      {
+        counter ++;
+        upClk = HIGH;
+        downClk = LOW;
+        tiempoEncendido = millis();
+      }
     }
-    
-    Serial.print("(");
-    Serial.print(counter);
-    Serial.print(")");
+
+    //Serial.print("(");
+    //Serial.print(counter);
+    //Serial.print(")");
     lastStateCLK = currentStateCLK;
+    lastRotaryEncoder = millis();
   }
 
 
@@ -282,17 +350,39 @@ void loop() {
   int btnState = digitalRead(SW);
 
   //If we detect LOW signal, button is pressed
-  if (btnState == LOW) {
+  if (btnState == LOW && newBtn == LOW) {
     //if 50ms have passed since last LOW pulse, it means that the
     //button has been pressed, released and pressed again
     if (millis() - lastButtonPress > 50) {
 
       newBtn = HIGH;
+      oldBtn = LOW;
+      countLongPress = 0;
+      tiempoEncendido = millis();
 
     }
-
     // Remember last button press event
     lastButtonPress = millis();
+
+  }
+  if (btnState == LOW)
+  {
+    countLongPress++;
+    //Serial.println(countLongPress);
+  }
+
+  //Si detecta señal HIGH, el botón se liberó
+  if (btnState == HIGH && oldBtn == LOW) {
+    //if 50ms have passed since last LOW pulse, it means that the
+    //button has been pressed, released and pressed again
+    if (millis() - lastButtonRelease > 50) {
+
+      oldBtn = HIGH;
+
+    }
+    // Remember last button press event
+    lastButtonRelease = millis();
+
   }
 
 
@@ -311,14 +401,16 @@ void loop() {
         {
           cursorDisplay++;
 
-          menuVal[0][3] = dht.readHumidity();
-          //Serial.println(menuVal[0][3]);
+          menuVal[0][4] = dht.readHumidity();
+          //Serial.println(menuVal[0][4]);
           menuVal[0][0] = dht.readTemperature();
           //Serial.println(t);
 
-          String uno = String("Temperat. ") + String((int)menuVal[0][0]) + String("/") + String((int)menuVal[0][1]) + String("C");
-          String dos = String("Humedad   ") + String((int)menuVal[0][3]) + String("%");
-          String tres = String("Velocidad ") + String("100") + String("%");
+          String uno = String("Temperat. ") + String((int)menuVal[0][0]) + String("/") + String((int)menuVal[0][1]) + String(unidTempe[(int)menuVal[0][3]]);
+          String dos = String("Humedad   ") + String((int)menuVal[0][4]) + String("%");
+          String tres = String("Velocidad ") + String(map(menuVal[2][3], 0, 255, 0, 100)) + String("%");
+
+
 
           renglones(uno, dos, tres, 3);
 
@@ -331,6 +423,13 @@ void loop() {
 
         }
       }
+      else if (cursorDisplay == 0)
+      {
+
+        display2();
+
+      }
+
 
       //Al rotar el dial cambia la luz
       if (upClk == HIGH)
@@ -347,6 +446,7 @@ void loop() {
           lightPWM = 255;
         }
         display2();
+        analogWrite(LUZ, lightPWM);
       }
       else if (downClk == HIGH)
       {
@@ -362,6 +462,7 @@ void loop() {
           lightPWM = 0;
         }
         display2();
+        analogWrite(LUZ, lightPWM);
       }
 
       //Al presionar el botón entra al menú
@@ -495,27 +596,33 @@ void loop() {
          menuVal[0][0] = Temperatura medida
          menuVal[0][1] = Temperatura seleccionada
          menuVal[0][2] = Ripple
-         menuVal[0][3] = Humedad medida
-         menuVal[0][4] = -
+         menuVal[0][3] = Unidad temperatura
+         menuVal[0][4] = Humedad medida
          menuVal[1][0] = -
-         menuVal[1][1] = Modo reloj (Temporizador/Cronometro/Off)
+         menuVal[1][1] = Modo reloj (Off/Cronometro/Temporizador)
          menuVal[1][2] = Tiempo en milisegundos
-         menuVal[1][3] = -
+         menuVal[1][3] = Reset
          menuVal[1][4] = -
          menuVal[2][0] = -
          menuVal[2][1] = Modo ventilacion (Manual/Automatico)
          menuVal[2][2] = Función ventilación (Progresivo/Simultáneo)
          menuVal[2][3] = Velocidad PWM
          menuVal[2][4] = -
-         menuVal[3][0] = Modo iluminación (On/Off)
-         menuVal[3][1] = Alarma iluminación (On/Off)
-         menuVal[3][2] = Brillo PWM
-         menuVal[3][3] = -
+         menuVal[3][0] = -
+         menuVal[3][1] = Modo iluminación (Off/On)
+         menuVal[3][2] = Alarma iluminación (Off/On)
+         menuVal[3][3] = Brillo PWM
          menuVal[3][4] = -
          menuVal[4][0] = Modo WIFI (Scan/AP)
          menuVal[4][1] = SSID
          menuVal[4][2] = Porencia dBm
          menuVal[4][3] = -
+         menuVal[4][4] = -
+         menuVal[5][0] = -
+         menuVal[5][1] = Reinicio
+         menuVal[5][2] = Sensibilidad rotary encoder
+         menuVal[5][3] = Contraste pantalla
+         menuVal[5][4] = -
       */
 
       //Al rotar el dial cambia el valor de configuración
@@ -526,7 +633,8 @@ void loop() {
         //Temperatura seleccionada
         if (cursorLvl1 == 0 && cursorLvl2 == 1)
         {
-          if (menuVal[cursorLvl1][cursorLvl2] < 100)
+          //Para °C el límite es 99 y para °F es 210
+          if (menuVal[cursorLvl1][cursorLvl2] < ((210 - 99)*menuVal[0][3] + 99))
           {
             menuVal[cursorLvl1][cursorLvl2]++;
           }
@@ -534,9 +642,25 @@ void loop() {
         //Riple
         else if (cursorLvl1 == 0 && cursorLvl2 == 2)
         {
-          if (menuVal[cursorLvl1][cursorLvl2] < 10)
+          //Para °C el límite es 10 y para °F es 18
+          if (menuVal[cursorLvl1][cursorLvl2] < ((18 - 10)*menuVal[0][3] + 10))
           {
             menuVal[cursorLvl1][cursorLvl2]++;
+          }
+        }
+        //Unidad temperatura
+        else if (cursorLvl1 == 0 && cursorLvl2 == 3)
+        {
+          //Pasó a °F
+          if (menuVal[cursorLvl1][cursorLvl2] < sizeof(unidTempe) / sizeof(unidTempe[0]) - 1)
+          {
+            menuVal[cursorLvl1][cursorLvl2]++;
+            //Conversión de °C a °F: °F = (°C x 1.8) + 32
+            //Conversión de °F a °C: °C = (°F - 32) / 1.8
+
+            //menuVal[0][1] = round(menuVal[0][1] * 1.8 + 32);
+            //menuVal[0][2] = round(menuVal[0][2] * 1.8 + 32);
+
           }
         }
         //Modo reloj
@@ -544,9 +668,23 @@ void loop() {
         {
           if (menuVal[cursorLvl1][cursorLvl2] < sizeof(modoReloj) / sizeof(modoReloj[0]) - 1)
           {
-            //Serial.println(sizeof(modoReloj) / sizeof(modoReloj[0]));
             menuVal[cursorLvl1][cursorLvl2]++;
-            //Serial.println(menuVal[cursorLvl1][cursorLvl2]);
+          }
+        }
+        //Tiempo reloj
+        else if (cursorLvl1 == 1 && cursorLvl2 == 2)
+        {
+
+          //Si flagTimer es 0 suma 1 minuto si flagTimer es 1 suma 30 minutos
+          menuVal[cursorLvl1][cursorLvl2] = menuVal[cursorLvl1][cursorLvl2] + 60000 + (flagTimer * 29 * 60000);
+
+        }
+        //Reset tiempo
+        else if (cursorLvl1 == 1 && cursorLvl2 == 3)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] < sizeof(modoSINO) / sizeof(modoSINO[0]) - 1)
+          {
+            menuVal[cursorLvl1][cursorLvl2]++;
           }
         }
         //Modo ventilación
@@ -554,9 +692,7 @@ void loop() {
         {
           if (menuVal[cursorLvl1][cursorLvl2] < sizeof(modoVenti) / sizeof(modoVenti[0]) - 1)
           {
-            //Serial.println(sizeof(modoVenti) / sizeof(modoVenti[0]));
             menuVal[cursorLvl1][cursorLvl2]++;
-            //Serial.println(menuVal[cursorLvl1][cursorLvl2]);
           }
         }
         //Funcion ventilación
@@ -564,26 +700,74 @@ void loop() {
         {
           if (menuVal[cursorLvl1][cursorLvl2] < sizeof(funcVenti) / sizeof(funcVenti[0]) - 1)
           {
-            Serial.println(sizeof(funcVenti) / sizeof(funcVenti[0]));
             menuVal[cursorLvl1][cursorLvl2]++;
-            Serial.println(menuVal[cursorLvl1][cursorLvl2]);
           }
         }
-        //Modo iluminación
-        else if (cursorLvl1 == 3 && cursorLvl2 == 0)
+        //Velocidad ventilación
+        else if (cursorLvl1 == 2 && cursorLvl2 == 3)
         {
-          if (menuVal[cursorLvl1][cursorLvl2] < sizeof(modoIlumi) / sizeof(modoIlumi[0]) - 1)
+          if (menuVal[cursorLvl1][cursorLvl2] < 255 - lightStep)
+          {
+            menuVal[cursorLvl1][cursorLvl2] = menuVal[cursorLvl1][cursorLvl2] + lightStep;
+          }
+          else
+          {
+            menuVal[cursorLvl1][cursorLvl2] = 255;
+          }
+          analogWrite(VT1, menuVal[cursorLvl1][cursorLvl2]);
+        }
+        //Modo iluminación
+        else if (cursorLvl1 == 3 && cursorLvl2 == 1)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] < sizeof(modoOFFON) / sizeof(modoOFFON[0]) - 1)
           {
             menuVal[cursorLvl1][cursorLvl2]++;
           }
         }
         //Modo alarma
-        else if (cursorLvl1 == 3 && cursorLvl2 == 1)
+        else if (cursorLvl1 == 3 && cursorLvl2 == 2)
         {
-          if (menuVal[cursorLvl1][cursorLvl2] < sizeof(modoAlarm) / sizeof(modoAlarm[0]) - 1)
+          if (menuVal[cursorLvl1][cursorLvl2] < sizeof(modoOFFON) / sizeof(modoOFFON[0]) - 1)
           {
             menuVal[cursorLvl1][cursorLvl2]++;
           }
+        }
+        //Brillo
+        else if (cursorLvl1 == 3 && cursorLvl2 == 3)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] < 255 - lightStep)
+          {
+            menuVal[cursorLvl1][cursorLvl2] = menuVal[cursorLvl1][cursorLvl2] + lightStep;
+          }
+          else
+          {
+            menuVal[cursorLvl1][cursorLvl2] = 255;
+          }
+          lightPWM = menuVal[cursorLvl1][cursorLvl2];
+          analogWrite(LUZ, lightPWM);
+        }
+        //Reinicio
+        else if (cursorLvl1 == 5 && cursorLvl2 == 1)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] < sizeof(modoSINO) / sizeof(modoSINO[0]) - 1)
+          {
+            menuVal[cursorLvl1][cursorLvl2]++;
+          }
+        }
+        //Contraste
+        else if (cursorLvl1 == 5 && cursorLvl2 == 3)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] < 255 - lightStep)
+          {
+            menuVal[cursorLvl1][cursorLvl2] = menuVal[cursorLvl1][cursorLvl2] + lightStep;
+          }
+          else
+          {
+            menuVal[cursorLvl1][cursorLvl2] = 255;
+          }
+
+          display.setContrast(menuVal[5][3]);
+
         }
         else
         {
@@ -591,30 +775,124 @@ void loop() {
         }
 
         displayLvl3(cursorLvl1, cursorLvl2);
+
       }
       else if (downClk == HIGH)
       {
         downClk = LOW;
 
-        //Temperatura seleccionada
-        if (cursorLvl1 == 0 && cursorLvl2 == 1 ||
-            //Ripple
-            cursorLvl1 == 0 && cursorLvl2 == 2 ||
-            //Modo reloj
-            cursorLvl1 == 1 && cursorLvl2 == 1 ||
-            //Modo ventilación
-            cursorLvl1 == 2 && cursorLvl2 == 1 ||
-            //Funcion ventilación
-            cursorLvl1 == 2 && cursorLvl2 == 2 ||
-            //Modo iluminación
-            cursorLvl1 == 3 && cursorLvl2 == 0 ||
-            //modo alarma
-            cursorLvl1 == 3 && cursorLvl2 == 1 )
+        //Seleccionada
+        if (//Ripple
+          cursorLvl1 == 0 && cursorLvl2 == 2 ||
+          //Modo reloj
+          cursorLvl1 == 1 && cursorLvl2 == 1 ||
+          //Modo ventilación
+          cursorLvl1 == 2 && cursorLvl2 == 1 ||
+          //Funcion ventilación
+          cursorLvl1 == 2 && cursorLvl2 == 2 ||
+          //Modo iluminación
+          cursorLvl1 == 3 && cursorLvl2 == 1 ||
+          //modo alarma
+          cursorLvl1 == 3 && cursorLvl2 == 2 ||
+          //Sensibilidad rotary encoder
+          cursorLvl1 == 5 && cursorLvl2 == 2)
         {
           if (menuVal[cursorLvl1][cursorLvl2] > 0)
           {
             menuVal[cursorLvl1][cursorLvl2]--;
           }
+        }
+
+        //Temperatura seleccionada
+        else if (cursorLvl1 == 0 && cursorLvl2 == 1)
+        {
+          //No permite temperaturas negativas
+          if (menuVal[cursorLvl1][cursorLvl2] > (32 - 0)*menuVal[0][3] + 0)
+          {
+            menuVal[cursorLvl1][cursorLvl2]--;
+          }
+        }
+        //Unidad temperatura
+        else if (cursorLvl1 == 0 && cursorLvl2 == 3)
+        {
+          //Pasó a °C
+          if (menuVal[cursorLvl1][cursorLvl2] > 0)
+          {
+            menuVal[cursorLvl1][cursorLvl2]--;
+            //Conversión de °C a °F: °F = (°C x 1.8) + 32
+            //Conversión de °F a °C: °C = (°F - 32) / 1.8
+
+            //menuVal[0][1] = round((menuVal[0][1] - 32 ) / 1.8);
+            //menuVal[0][2] = round((menuVal[0][2] - 32 ) / 1.8);
+
+          }
+        }
+        //Tiempo reloj
+        else if (cursorLvl1 == 1 && cursorLvl2 == 2)
+        {
+          //Si falgstimer es 0 resta de a 1 minuto si flagTimer es 1 resta de a 30 minutos
+          if (menuVal[cursorLvl1][cursorLvl2] >= 60000  + (flagTimer * 29 * 60000))
+          {
+            menuVal[cursorLvl1][cursorLvl2] = menuVal[cursorLvl1][cursorLvl2] - 60000 - (flagTimer * 29 * 60000);
+          }
+        }
+        //Reset tiempo
+        else if (cursorLvl1 == 1 && cursorLvl2 == 3)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] >= sizeof(modoSINO) / sizeof(modoSINO[0]) - 1)
+          {
+            menuVal[cursorLvl1][cursorLvl2]--;
+          }
+        }
+        //Velocidad ventilación
+        else if (cursorLvl1 == 2 && cursorLvl2 == 3)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] >= lightStep)
+          {
+            menuVal[cursorLvl1][cursorLvl2] = menuVal[cursorLvl1][cursorLvl2] - lightStep;
+          }
+          else
+          {
+            menuVal[cursorLvl1][cursorLvl2] = 0;
+          }
+          analogWrite(VT1, menuVal[cursorLvl1][cursorLvl2]);
+        }
+        //Brillo
+        else if (cursorLvl1 == 3 && cursorLvl2 == 3)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] >= lightStep)
+          {
+            menuVal[cursorLvl1][cursorLvl2] = menuVal[cursorLvl1][cursorLvl2] - lightStep;
+          }
+          else
+          {
+            menuVal[cursorLvl1][cursorLvl2] = 0;
+          }
+          lightPWM = menuVal[cursorLvl1][cursorLvl2];
+          analogWrite(LUZ, lightPWM);
+        }
+        //Reinicio
+        else if (cursorLvl1 == 5 && cursorLvl2 == 1)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] >= sizeof(modoSINO) / sizeof(modoSINO[0]) - 1)
+          {
+            menuVal[cursorLvl1][cursorLvl2]--;
+          }
+        }
+        //Contraste pantalla
+        else if (cursorLvl1 == 5 && cursorLvl2 == 3)
+        {
+          if (menuVal[cursorLvl1][cursorLvl2] >= lightStep)
+          {
+            menuVal[cursorLvl1][cursorLvl2] = menuVal[cursorLvl1][cursorLvl2] - lightStep;
+          }
+          else
+          {
+            menuVal[cursorLvl1][cursorLvl2] = 0;
+          }
+
+          display.setContrast(menuVal[5][3]);
+
         }
         else
         {
@@ -625,54 +903,360 @@ void loop() {
 
       }
 
-      //Al presionar el botón entra al submenú
-      if (newBtn == HIGH)
+      //Al presionar el botón actúa la primer etapa
+      //Cambia la lógica de control en nivel tres actúa al soltar por long press
+      if (newBtn == HIGH && oldBtn == HIGH)
       {
+
         newBtn = LOW;
-        cursorMenu--;
-        printBoton();
-        displayLvl2(cursorLvl1, cursorLvl2);
-        //Guardar en memoria el nuevo valor de la variable
-        /*
-          eeAddress = 100 + sizeof(float) * (cursorLvl1 * submenuLength + cursorLvl2);
+        oldBtn = LOW;
+        Serial.print("Short press ");
+        Serial.println(countLongPress);
+        //countLongPress = 0;
 
-          EEPROM.put(eeAddress, menuVal[cursorLvl1][cursorLvl2]);
+        //Reset tiempo
+        if (cursorLvl1 == 1 && cursorLvl2 == 3 && modoSINO[(int)menuVal[cursorLvl1][cursorLvl2]] == "SI")
+        {
+          tiempoInicio = millis();
 
-          Serial.print(eeAddress);
-          Serial.print(" ");
-          Serial.print(cursorLvl1);
-          Serial.print(" ");
-          Serial.print(cursorLvl2);
-          Serial.print(" ");
-          Serial.println(menuVal[cursorLvl1][cursorLvl2]);
+          cursorMenu--;
+          printBoton();
+          displayLvl2(cursorLvl1, cursorLvl2);
+        }
+        //Reinicio a modo de fábrica
+        else if (cursorLvl1 == 5 && cursorLvl2 == 1 && modoSINO[(int)menuVal[cursorLvl1][cursorLvl2]] == "SI")
+        {
 
-          Serial.println("");
+          display.clearBuffer();
+          display.setCursor(2, line1);
+          display.print("Modo fabrica...");
+          display.sendBuffer();
 
-          Serial.println("Cargando memoria: ");
-          eeAddress = 100;
+          delay(1000);
+
+          //Inicialización de variables
+          //menuVal[0][0] = Temperatura medida
+          menuVal[0][0] = 0;
+          //menuVal[0][1] = Temperatura seleccionada
+          menuVal[0][1] = 35;
+          //menuVal[0][2] = Ripple
+          menuVal[0][2] = 3;
+          //menuVal[0][3] = Unidad tempertura
+          menuVal[0][3] = 0;
+          //menuVal[0][4] = Humedad medida
+          menuVal[0][4] = 0;
+          //menuVal[1][0] = -
+          menuVal[1][0] = 0;
+          //menuVal[1][1] = Modo reloj (Off/Cronometro/Temporizador)
+          menuVal[1][1] = 2;
+          //menuVal[1][2] = Tiempo en milisegundos
+          menuVal[1][2] = 0;
+          //menuVal[1][3] = Reinicio
+          menuVal[1][3] = 0;
+          //menuVal[1][4] = -
+          menuVal[1][4] = 0;
+          //menuVal[2][0] = -
+          menuVal[2][0] = 0;
+          //menuVal[2][1] = Modo ventilacion (Manual/Automatico)
+          menuVal[2][1] = 1;
+          //menuVal[2][2] = Función ventilación (Progresivo/Simultáneo)
+          menuVal[2][2] = 0;
+          //menuVal[2][3] = Velocidad PWM
+          menuVal[2][3] = 0;
+          //menuVal[2][4] = -
+          menuVal[2][4] = 0;
+          //menuVal[3][0] = -
+          menuVal[3][0] = 0;
+          //menuVal[3][1] = Alarma iluminación (Off/On)
+          menuVal[3][1] = 1;
+          //menuVal[3][2] = Modo alarma
+          menuVal[3][2] = 0;
+          //menuVal[3][3] = Brillo PWM
+          menuVal[3][3] = 255;
+          //menuVal[3][4] = -
+          menuVal[3][4] = 0;
+          //menuVal[4][0] = Modo WIFI (Scan/AP)
+          menuVal[4][0] = 0;
+          //menuVal[4][1] = SSID
+          menuVal[4][1] = 0;
+          //menuVal[4][2] = Potencia dBm
+          menuVal[4][2] = 0;
+          //menuVal[4][3] = -
+          menuVal[4][3] = 0;
+          //menuVal[4][4] = -
+          menuVal[4][4] = 0;
+          //menuVal[5][0] = -
+          menuVal[5][0] = 0;
+          //menuVal[5][1] = Reinicio
+          menuVal[5][1] = 0;
+          //menuVal[5][2] = Sensibilidad rotary encoder
+          menuVal[5][2] = 12;
+          //menuVal[5][3] = Contraste pantalla
+          menuVal[5][3] = 255;
+          //menuVal[5][4] = -
+          menuVal[5][4] = 0;
+
+          eeAddress = eeOffset;
+
+          Serial.println("Reinicio a modo de fábrica");
           for (int i = 0; i < menuLength; i++) {
-          for (int j = 0; j < submenuLength; j++)
+            for (int j = 0; j < submenuLength; j++)
+            {
+              EEPROM.put(eeAddress, menuVal[i][j]);
+              Serial.print(eeAddress);
+              Serial.print(" ");
+              Serial.print(i);
+              Serial.print(" ");
+              Serial.print(j);
+              Serial.print(" ");
+              Serial.println(menuVal[i][j]);
+              eeAddress += sizeof(menuVal[i][j]);
+            }
+          }
+
+          if (eeAddress >= 4096) {
+            Serial.println("Advertencia error overflow memoria EEPROM");
+          }
+
+          if (EEPROM.commit())
           {
-            EEPROM.get(eeAddress, menuVal[i][j]);
+            Serial.println(" ");
+            Serial.println("EEPROM successfully committed");
+            Serial.println(" ");
+          }
+          else
+          {
+            Serial.println(" ");
+            Serial.println("ERROR! EEPROM commit failed");
+            Serial.println(" ");
+          }
+
+
+          //Reinicia el menú
+          cursorMenu = 0;                     //Indicador menú o carrusel
+          cursorDisplay = 0;                  //Indicador de pantalla rotativa
+          cursorLvl1 = 0;                     //Indicador menú general
+          cursorLvl2 = 1;                     //El cursor de segundo nivel no puede ser menor a 1
+
+
+          displayLvl1(cursorLvl1);
+          printBoton();
+
+        }
+        //Tiempo reloj Long press 2 segundos prácticos 3 segundos de usuario
+        else if (cursorLvl1 == 1 && cursorLvl2 == 2 && countLongPress >= 500)
+        {
+
+          flagTimer = !flagTimer;
+
+          Serial.print("Long Press ");
+          Serial.println(countLongPress);
+          displayLvl3(cursorLvl1, cursorLvl2);
+
+        }
+        //Para el resto de las variables solo guarda su valor
+        else {
+
+          cursorMenu--;
+          printBoton();
+
+
+          //Guardar en memoria el nuevo valor de la variable solo si no sufrio cambios
+
+          eeAddress = eeOffset + sizeof(float) * (cursorLvl1 * submenuLength + cursorLvl2);
+
+          //Compara por float
+          float anterior = 0;
+          EEPROM.get(eeAddress, anterior);
+          if (anterior != menuVal[cursorLvl1][cursorLvl2]) {
             Serial.print(eeAddress);
             Serial.print(" ");
-            Serial.print(i);
+            Serial.print(cursorLvl1);
             Serial.print(" ");
-            Serial.print(j);
+            Serial.print(cursorLvl2);
             Serial.print(" ");
-            Serial.println(menuVal[i][j]);
-            eeAddress += sizeof(menuVal[i][j]);
+            Serial.println(menuVal[cursorLvl1][cursorLvl2]);
+            EEPROM.put(eeAddress, menuVal[cursorLvl1][cursorLvl2]);
+
+            //Si cambió la unidad de medida debe corregir y guardar las temperaturas
+            if (cursorLvl1 == 0 && cursorLvl2 == 3)
+            {
+
+              //Conversión de °C a °F: °F = (°C x 1.8) + 32
+              //Conversión de °F a °C: °C = (°F - 32) / 1.8
+
+              //°C
+              if (menuVal[0][3] == 0)
+              {
+                //Temperatura setpoint
+                menuVal[0][1] = round((menuVal[0][1] - 32 ) / 1.8);
+                eeAddress = eeOffset + sizeof(float) * (0 * submenuLength + 1);
+                EEPROM.put(eeAddress, menuVal[0][1]);
+
+                //Riple
+                menuVal[0][2] = round(menuVal[0][2] / 1.8);
+                eeAddress = eeOffset + sizeof(float) * (0 * submenuLength + 2);
+                EEPROM.put(eeAddress, menuVal[0][2]);
+              }
+              //°F
+              else if (menuVal[0][3] == 1)
+              {
+                //Temperatura setpoint
+                menuVal[0][1] = round(menuVal[0][1] * 1.8 + 32);
+                eeAddress = eeOffset + sizeof(float) * (0 * submenuLength + 1);
+                EEPROM.put(eeAddress, menuVal[0][1]);
+
+                //Riple
+                menuVal[0][2] = round(menuVal[0][2] * 1.8);
+                eeAddress = eeOffset + sizeof(float) * (0 * submenuLength + 2);
+                EEPROM.put(eeAddress, menuVal[0][2]);
+              }
+
+
+            }
+
+            if (EEPROM.commit())
+            {
+              Serial.println("EEPROM successfully committed");
+            }
+            else
+            {
+              Serial.println("ERROR! EEPROM commit failed");
+            }
+
+            //El pin 14 del switch comparte con SPI (eeprom)
+            while (digitalRead(SW) == LOW)
+            {
+              //Nada
+            }
+
           }
-          }
-        */
+
+          displayLvl2(cursorLvl1, cursorLvl2);
+
+          //Compara por bytes FALTA CORREGIR E IMPLEMENTAR
+          //Serial.println(sizeof(menuVal[cursorLvl1][cursorLvl2]));
+          /*
+            Serial.println("Cargando memoria: ");
+            eeAddress = eeOffset;
+            for (int i = 0; i < menuLength; i++) {
+            for (int j = 0; j < submenuLength; j++)
+            {
+              EEPROM.get(eeAddress, menuVal[i][j]);
+              Serial.print(eeAddress);
+              Serial.print(" ");
+              Serial.print(i);
+              Serial.print(" ");
+              Serial.print(j);
+              Serial.print(" ");
+              Serial.println(menuVal[i][j]);
+              eeAddress += sizeof(menuVal[i][j]);
+            }
+            }
+                    /*
+            for (int i = 0; i < sizeof(menuVal[cursorLvl1][cursorLvl2]); i++) {
+
+              if (EEPROM.read(eeAddress + i) != menuVal[cursorLvl1][cursorLvl2][i])
+              {
+              //EEPROM.write(eeAddress + i, menuVal[cursorLvl1][cursorLvl2][i]);
+              Serial.print(menuVal[cursorLvl1][cursorLvl2]);
+              Serial.print(" ");
+              //Serial.println(menuVal[cursorLvl1][cursorLvl2][i]);
+              }
+              }
+          */
+
+        }
+
+
+
+
 
       }
-
       break;
 
   }
 
+  //**********************************************************************
+  //**********************************************************************
+  //                          Lógica de control
+  //**********************************************************************
+  //**********************************************************************
+
+  //Suspención 10 minutos 600000 milisegundos
+  if ( millis() - tiempoEncendido >= 600000)
+  {
+    //Apagado
+    display.setPowerSave(HIGH);
+    //Todas las acciones de activacación deben resetear la base de tiempo
+    //tiempoEncendido = millis(); para reanudar
+  }
+  else
+  {
+    display.setPowerSave(LOW);
+  }
+
+
+  //**********************************************************************
+  //                          Control ventiladores
+  //**********************************************************************
+
+  //Modo manual
+  if (menuVal[2][1] == 0)
+  {
+    //Función simultaneo
+    if (menuVal[2][2] == 0)
+    {
+      analogWrite(VT1, menuVal[2][3]);
+      analogWrite(VT2, menuVal[2][3]);
+    }
+    //Función progresivo
+    else if (menuVal[2][2] == 1)
+    {
+
+      progresivo((byte)menuVal[2][3]);
+
+    }
+  }
+  //Modo automático
+  else if (menuVal[2][1] == 1)
+  {
+    //Función simultaneo
+    if (menuVal[2][2] == 0)
+    {
+
+      power();
+      analogWrite(VT1, menuVal[2][3]);
+      analogWrite(VT2, menuVal[2][3]);
+
+    }
+    //Función progresivo
+    else if (menuVal[2][2] == 1)
+    {
+      power();
+      progresivo((byte)menuVal[2][3]);
+    }
+  }
+
+  //**********************************************************************
+  //                            Control alarmas
+  //**********************************************************************
+
+  
+
+
+  //analogWrite(LUZ,menuVal[3][3]); //Debería ser lightPWM
+
+
+
+
 }
+
+//**********************************************************************
+//**********************************************************************
+//                            Funciones
+//**********************************************************************
+//**********************************************************************
 
 
 //**********************************************************************
@@ -681,7 +1265,134 @@ void loop() {
 void display2 (void)
 {
 
-  String uno  = String("Tempo ") + String("00:35:21") + String("hs");
+  //menuVal[1][1] = Modo reloj (Off/Cronometro/Temporizador)
+  String uno = "";
+  unsigned long reloj = 0;            //Tiempo actual transcurrido
+
+  //Modo reloj
+  if (menuVal[1][1] == 0)
+  {
+    //*********************************************************************
+    //                               OFF
+    //*********************************************************************
+
+    uno  = String("Reloj ") + String("00:00:00") + String("hs");
+
+  }
+  else if (menuVal[1][1] == 1)
+  {
+    //*********************************************************************
+    //                            Cronometro
+    //*********************************************************************
+
+    reloj = millis() - tiempoInicio;
+
+    if (millis() - tiempoInicio >= menuVal[1][2])
+    {
+      //ALARMA!!!!
+      uno  = String("Crono ") + String("00:00:00") + String("hs");
+    }
+    else {
+      uno  = String("Crono ");
+
+      int horas = (int) (reloj / 1000 / 60 / 60);
+
+      if (horas < 10)
+      {
+        uno = uno + String("0");
+      }
+
+      uno = uno + String(horas) + String(":");
+
+      int minutos = reloj / 1000;
+
+      if (minutos >= 3600)
+      {
+        minutos = minutos - (int)(minutos / 3600) * 3600;
+      }
+
+      minutos = minutos / 60;
+
+      if (minutos < 10)
+      {
+        uno = uno + String("0");
+      }
+
+      uno = uno + String(minutos) + String(":");
+
+      int segundos = reloj / 1000;
+
+      if (segundos >= 60)
+      {
+        segundos = segundos - (int)(segundos / 60) * 60;
+      }
+
+      if (segundos < 10)
+      {
+        uno = uno + String("0");
+      }
+
+      uno = uno + String(segundos) + String("hs");
+    }
+  }
+  else if ( menuVal[1][1] == 2)
+  {
+    //*********************************************************************
+    //                           Temporizador
+    //*********************************************************************
+
+    if (millis() - tiempoInicio >= menuVal[1][2])
+    {
+      //ALARMA!!!!
+      uno  = String("Tempo ") + String("00:00:00") + String("hs");
+    }
+    else {
+
+      reloj = menuVal[1][2] - (millis() - tiempoInicio);
+
+      uno  = String("Tempo ");
+
+      int horas = (int) (reloj / 1000 / 60 / 60);
+
+      if (horas < 10)
+      {
+        uno = uno + String("0");
+      }
+
+      uno = uno + String(horas) + String(":");
+
+      int minutos = reloj / 1000;
+
+      if (minutos >= 3600)
+      {
+        minutos = minutos - (int)(minutos / 3600) * 3600;
+      }
+
+      minutos = minutos / 60;
+
+      if (minutos < 10)
+      {
+        uno = uno + String("0");
+      }
+
+      uno = uno + String(minutos) + String(":");
+
+      int segundos = reloj / 1000;
+
+      if (segundos >= 60)
+      {
+        segundos = segundos - (int)(segundos / 60) * 60;
+      }
+
+      if (segundos < 10)
+      {
+        uno = uno + String("0");
+      }
+
+      uno = uno + String(segundos) + String("hs");
+    }
+  }
+
   String dos  = String("WIFI  ") + String("    --    ");
   String tres = String("Iluminacion ") + map(lightPWM, 0, 255, 0, 100) + String("%");
 
@@ -834,7 +1545,7 @@ void displayLvl2(int cursorLvl1, int cursorLvl2)
 }
 
 //**********************************************************************
-//                   Imprime menú display segundo nivel
+//                   Imprime menú display tercer nivel
 //**********************************************************************
 
 void displayLvl3(int cursorLvl1, int cursorLvl2)
@@ -843,37 +1554,131 @@ void displayLvl3(int cursorLvl1, int cursorLvl2)
   display.clearBuffer();
   display.setCursor(0, line0);
   display.print(menu[cursorLvl1][cursorLvl2]);
+  display.setCursor(0, line1 + line0 / 2);
+  display.print("<");
+  display.setCursor(10, line1 + line0 / 2);
 
-  //Modo reloj
-  if (cursorLvl1 == 1 && cursorLvl2 == 1)
+
+  //Temperatura seleccionada
+  if (cursorLvl1 == 0 && cursorLvl2 == 1 )
   {
-    display.setCursor(10, line1 + line0 / 2);
+    display.setCursor(50, line1 + line0 / 2);
+    display.print((int)menuVal[cursorLvl1][cursorLvl2]);
+    display.print("\xB0"); //Símbolo ° "grados" (ISO-8859-1)
+    display.print(unidTempe[(int)menuVal[0][3]]);
+  }
+  //Riple
+  else if (cursorLvl1 == 0 && cursorLvl2 == 2 )
+  {
+    display.setCursor(50, line1 + line0 / 2);
+    display.print("\xB1"); //Símbolo más menos (ISO-8859-1)
+    display.print((int)menuVal[cursorLvl1][cursorLvl2]);
+    display.print("\xB0"); //Símbolo ° "grados" (ISO-8859-1)
+    display.print(unidTempe[(int)menuVal[0][3]]);
+  }
+  //Unidad temperatura
+  else if (cursorLvl1 == 0 && cursorLvl2 == 3)
+  {
+    display.setCursor(50, line1 + line0 / 2);
+    display.print("\xB0"); //Símbolo ° "grados"
+    display.print(unidTempe[(int)menuVal[cursorLvl1][cursorLvl2]]);
+  }
+  //Modo reloj
+  else if (cursorLvl1 == 1 && cursorLvl2 == 1)
+  {
     display.print(modoReloj[(int)menuVal[cursorLvl1][cursorLvl2]]);
+
+  }
+  //Tiempo reloj
+  else if (cursorLvl1 == 1 && cursorLvl2 == 2)
+  {
+    display.setCursor(50, line1 + line0 / 2);
+    //milisegundos / 1000 = segundos
+    //segundos / 60 = minutos
+    //minutos / 60 = horas
+
+    int horas = (int) (menuVal[cursorLvl1][cursorLvl2] / 1000 / 60 / 60);
+    int minutos = menuVal[cursorLvl1][cursorLvl2] / 1000;
+
+    if (minutos >= 3600)
+    {
+      minutos = minutos - (int)(minutos / 3600) * 3600;
+    }
+
+    minutos = minutos / 60;
+
+    display.print(horas);
+    display.print(":");
+    if (minutos < 10)
+    {
+      display.print(0);
+    }
+    display.print(minutos);
+    display.print(" Hs");
+
+    display.setCursor(50, line0);
+    if (flagTimer == HIGH)
+    {
+      display.print("+");
+    }
+
+  }
+  //Reset
+  else  if (cursorLvl1 == 1 && cursorLvl2 == 3)
+  {
+    display.setCursor(50, line1 + line0 / 2);
+    display.print(modoSINO[(int)menuVal[cursorLvl1][cursorLvl2]]);
   }
   //Modo ventilación
   else  if (cursorLvl1 == 2 && cursorLvl2 == 1)
   {
-    display.setCursor(10, line1 + line0 / 2);
+    display.setCursor(20, line1 + line0 / 2);
     display.print(modoVenti[(int)menuVal[cursorLvl1][cursorLvl2]]);
   }
   //Funcion ventilación
   else  if (cursorLvl1 == 2 && cursorLvl2 == 2)
   {
-    display.setCursor(10, line1 + line0 / 2);
+    display.setCursor(20, line1 + line0 / 2);
     display.print(funcVenti[(int)menuVal[cursorLvl1][cursorLvl2]]);
   }
-  //Modo iluminación
-  else if (cursorLvl1 == 3 && cursorLvl2 == 0)
+  //Velocidad ventilación
+  else  if (cursorLvl1 == 2 && cursorLvl2 == 3)
   {
-    display.setCursor(10, line1 + line0 / 2);
-    display.print(modoIlumi[(int)menuVal[cursorLvl1][cursorLvl2]]);
+    display.setCursor(50, line1 + line0 / 2);
+    display.print(map((int)menuVal[cursorLvl1][cursorLvl2], 0, 255, 0, 100));
+    display.print("%");
   }
-
-  //Modo alarma
-  else  if (cursorLvl1 == 3 && cursorLvl2 == 1)
+  //Modo iluminación
+  else if (cursorLvl1 == 3 && cursorLvl2 == 1)
   {
-    display.setCursor(10, line1 + line0 / 2);
-    display.print(modoAlarm[(int)menuVal[cursorLvl1][cursorLvl2]]);
+    display.setCursor(50, line1 + line0 / 2);
+    display.print(modoOFFON[(int)menuVal[cursorLvl1][cursorLvl2]]);
+  }
+  //Modo alarma
+  else  if (cursorLvl1 == 3 && cursorLvl2 == 2)
+  {
+    display.setCursor(50, line1 + line0 / 2);
+    display.print(modoOFFON[(int)menuVal[cursorLvl1][cursorLvl2]]);
+  }
+  //Brillo
+  else  if (cursorLvl1 == 3 && cursorLvl2 == 3)
+  {
+    display.setCursor(50, line1 + line0 / 2);
+    display.print(map((int)menuVal[cursorLvl1][cursorLvl2], 0, 255, 0, 100));
+    display.print("%");
+  }
+  //Reinicio
+  else  if (cursorLvl1 == 5 && cursorLvl2 == 1)
+  {
+    display.setCursor(50, line1 + line0 / 2);
+    display.print(modoSINO[(int)menuVal[cursorLvl1][cursorLvl2]]);
+  }
+  //Contraste
+  else  if (cursorLvl1 == 5 && cursorLvl2 == 3)
+  {
+    display.setCursor(50, line1 + line0 / 2);
+    display.print(map((int)menuVal[cursorLvl1][cursorLvl2], 0, 255, 0, 100));
+    display.print("%");
   }
   else
   {
@@ -881,9 +1686,76 @@ void displayLvl3(int cursorLvl1, int cursorLvl2)
     display.print((int)menuVal[cursorLvl1][cursorLvl2]);
   }
 
+  display.setCursor(displayRow, line1 + line0 / 2);
+  display.print(">");
   display.sendBuffer();
 }
 
+//**********************************************************************
+//                              Coolers
+//**********************************************************************
+
+
+void progresivo(byte power) {
+
+  //Hasta un 30%
+  if (power < 76)
+  {
+    analogWrite(VT1, menuVal[2][3]);
+  }
+  //Hasta un 70%
+  else if (power < 187)
+  {
+    analogWrite(VT2, menuVal[2][3]);
+  }
+  else
+  {
+    analogWrite(VT1, menuVal[2][3]);
+    analogWrite(VT2, menuVal[2][3]);
+  }
+
+}
+
+void power(void) {
+
+  //El error va de 0 a 255
+  //0 = setpoint - riple
+  //255 = setpont + riple
+  //menuVal[0][0] = Temperatura medida
+  //menuVal[0][1] = Temperatura seleccionada
+  //menuVal[0][2] = riple
+
+  byte error = 0;
+
+  //Por debajo del riple
+  //Temperatura medida - Temperatura seleccionada - Ripple)
+  if ((menuVal[0][0] - menuVal[0][1] - menuVal[0][2]) <= 0 )
+  {
+    error = 0;
+  }
+  //Por debajo del setpoint
+  //(Temperatura seleccionada - Temperatura medida) <= Ripple
+  else if ((menuVal[0][1] - menuVal[0][0]) <= menuVal[0][2])
+  {
+    //De 0 a 50% ( 0 a 127)
+    //(riple - (Temperatura seleccionada - Temperatura medida))/riple)
+    error = ((menuVal[0][2] - (menuVal[0][1] - menuVal[0][0])) / menuVal[0][2]) * 127;
+  }
+  //Por sobre el setpoint
+  else if ((menuVal[0][0] - menuVal[0][1]) <= 2 * menuVal[0][2])
+  {
+    //De 51 a 100% ( 128 a 255)
+    error = ((menuVal[0][2] - (menuVal[0][1] - menuVal[0][0])) / menuVal[0][2]) * 127;
+  }
+  //Por sobre el riple
+  else
+  {
+    error = 255;
+  }
+
+  menuVal[2][3] = error;
+
+}
 
 
 //**********************************************************************
