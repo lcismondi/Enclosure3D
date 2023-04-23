@@ -1,4 +1,4 @@
-# V02: mcu esp8266
+# V0.2: mcu esp8266
  * Eeprom update float
  * Rotary debounce
  * Bug commit eeprom
@@ -15,11 +15,11 @@
  * Reset contador de reloj
  * Auto suspención pantalla
 
-# V01: Bug rotary encoder
+# V0.1: Bug rotary encoder
  * Zig-zag bug y switch antirrebote
  * Manejo de memoria EEPROM (No tiene interna)
 
-# V00: Versión inicial
+# V0.0: Versión inicial
  * Rotary encoder
  * Push button
  * Termómetro y Humedad
@@ -28,7 +28,6 @@
 
 # Vxx: Futuro
  * Eeprom mapa de bits update
-
  * Flechas dinámicas level 3
  * Funciones level 3 fuera de rango "módulo" A%B
  * Menú configuración
@@ -36,7 +35,6 @@
 	 Segundos rotación pantalla
 	 Sentido pantalla
 	 Paso dial de luz
-
  * Calibración temperatura
  * Bloqueo inicialización sensor de humedad
  * Ver de actualizar valores dentro o fuera del switch
