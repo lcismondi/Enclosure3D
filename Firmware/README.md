@@ -113,6 +113,7 @@ Existe una opción de reinicio a modo de fábrica la cual, setea valores por def
 
 El nivel cero es un carrusel el cual muestra dos pantallas rotativas cada 3 segundos, luego al hacer click con el cursos ingresa al primer nivel de menú en el cual se selecciona la opción a configurar, para ingresar a un segundo submenú en donde se elije el valor final que se desea personalizar.
 
+![Diagrama pantallas](./Imagenes/Enclosure3D%20menu%20v0.jpg)
 
 
 
