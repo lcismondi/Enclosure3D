@@ -145,5 +145,44 @@ La función de ventilación busca disminuir el ruido ocacionado por los ventilad
 
 ## Funciones
 
+### void display2 (void);
+Actualiza la segunda pantalla del carrusel, se utiliza para activar la función de iluminación en el acto. Al estar situado en el carrusel, si se gira el cursor se puede ajustar el nivel de iluminación sin que este implique actualizar el seteo por default en el brillo. Cuando el equipo vuelve a encender tomará como parámetro el valor que tenga en Iluminación >> Brillo.
+
+### void renglones (String, String, String, int);
+Gestiona el sombreado de los renglones del menú y la colocación de las flehas de navegación. Trabaja en conjunto con los displayLnl's.
+
+### void displayLvl1(int);
+Dependiendo de la posición del cursor imprime de forma dinámica los renglones siguientes y anteriores.
+*Puede tener problemas para imprimir líneas de menú con menos de 3 ítems.*
+
+### void displayLvl2(int, int);
+Dependiendo de la posición del cursor y el menú seleccionado imprime de forma dinámica el submenú.
+*Es importante limitar el submenú con la palabra especial "Volver".*
+
+### void displayLvl3(int, int);
+Administra el cambio de las variables finales y tiene condiciones de personalización para cada tipo de dato.
+
+### void printHorario (void);
+Salida por terminal para bugging, imprime estado de los cursores para giros horarios.
+
+### void printAntihorario (void);
+Salida por terminal para bugging, imprime estado de los cursores para giros antihorarios.
+
+### void printBoton (void
+Salida por terminal para bugging, imprime estado de los cursores al presionar.
+
+### void progresivo(byte);
+Trabaja en función de "power". Con la siguiente condición:
+* Para potencias por debajo de 30% enciende solo un ventilados.
+* Para potencias entre 30 y 70% enciendo dos ventiladores.
+* Para potencias mayores al 70% enciente los tres ventiladores.
+
+### void power(void);
+Determina el nivel de potencia aplicada al sistema de ventilación.
+* Si se encuentra por debajo del límite inferior del (set point - riple) no enciende.
+* Entre el límite inferior del (set point - riple) y el set point, enciende progresivamente hasta el 50%.
+* Entre el set point y el límite superior del (set point + riple), enciende progresivamente hasta el 100%.
+* Si se encuentra por sobre del límite superior del (set point + riple) enciende a máxima potencia.
+
 # Releases
 Para ver las características de cada una de las versiones ir a [Versiones.md](./Versiones.md)
