@@ -115,13 +115,33 @@ El nivel cero es un carrusel el cual muestra dos pantallas rotativas cada 3 segu
 
 ![Diagrama pantallas](./Imagenes/Enclosure3D%20menu%20v0.jpg)
 
-
-
 ## Funcionalidades
 
-## Modo timer
+### Longpress (5 seg)
+En algunas ocaciones se puede mantener presionado el cursor para destrabar una segunda función al click. Por defecto, mantener presionado el botón por 5 segundos y luego soltarlo, ejecuta una segunda función, esta última acciona al soltar el botón.
 
-## Modo ventiladores
+### Apagado y encendido
+Al conectar el jack de alimentación (12v) el equipo naturalmente enciende. Para apagar el equipo definitivamente se lo debe desconectar, pero tiene una función "Stand by" la cual se activa manteniendo presionado el botón por 5 segundos. En este modo el equipo corta todas las salidas y apaga la pantalla
+Para encenderlo se realiza el mismo procedimiento, se mantiene presionado el botón por 5 segundos y el equipo vuelve a encerder.
+
+### Stand by
+Si el equipo transcurre más de 10 minutos sin ninguna actividad en los movimientos del cursor y la temperatura ambiente por debajo del set point entra en un modo stand by en donde solo queda monitoreando el estado de la temperatura para volver a encerder si algún evento lo despierta, como puede ser que la temperatura supere el set point seleccionado.
+
+## Modo temporizador
+Al iniciar el equipo o al resetear el reloj (Reloj >> Reset) comienza a contar el tiempo en la pantalla del carrusel. Se puede elegir la base desde donde comienza a contar en el menú Rejoj >> Tiempo. Se utiliza la misma base de tiempo tanto para el temporizador y el cronómetro.
+
+## Modo cronómetro
+De forma similar al modo temporizador, pero de manera inversa. Al iniciar el equipo o al resetear el reloj (Reloj >> Reset) comienza a contar el tiempo de forma descendente en la pantalla del carrusel. Se puede elegir la base desde donde comienza a contar en el menú Rejoj >> Tiempo.
+
+## Modo ventilación
+Puede ser manual o automático. En el modo manual se puede seleccionar la velocidad desde el menú (Ventilación >> Velocidad), la cual fija la velocidad de los ventiladores indistintamente de la temperatura que tenga en gabinete controlado.
+En caso de seleccionar automático, el sistema regula la velocidad de los ventiladores en función de la temperatura interna del gabinete, la seteada como referencia (set point) y el riple.
+Ambos modos se van a ver afectados por el tipo de función de ventilación seleccionada.
+
+## Funcion ventilación
+La función de ventilación busca disminuir el ruido ocacionado por los ventiladores. Existen dos formas de trabajo:
+* Progresivo, a bajas potencias enciende solo un ventilador, a potencias medias enciende dos ventiladores y cuando requiere extraer mucho volumen termina encendiendo los tres ventiladores. Cada una de las etapas de encendido son escalonadas.
+* Simultáneo, en esta forma de trabajo se encienden los tres ventiladores juntos con el nivel de potencia requerido para garantizar la estabilida de la temperatura interna.
 
 ## Funciones
 
