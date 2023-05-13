@@ -1,6 +1,6 @@
 # Pinout
 
-(Foto PCBA)
+![Componentes internos](./Enclosure3D%20Perspectiva%20Componentes.png)
 
 ## Rotary encoder
 * Switch: 13 [D7]
