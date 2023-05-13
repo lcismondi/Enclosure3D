@@ -1,5 +1,5 @@
 # Enclosure3D
-Control de ambiente para un gabinete de impresión 3D
+[Cuartobe](https://www.cuartobe.ar/) se puso a diseñar un control de ambiente para un gabinete de impresión 3D, puede ver más novedades en sus redes [Instagram](https://www.instagram.com/cuartobe.ar) y [TikTok](https://www.tiktok.com/@cuartobe.ar).
 
 (Foto componentes)
 
