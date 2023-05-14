@@ -4,7 +4,7 @@
 (Foto componentes)
 
  ### Componentes
- * NodeMCU 8266 V2 o V3
+ * NodeMCU 8266 (compatible con V2 y V3)
  * Display 0.91 oled
  * Sensor de humedad y temperatura DHT11 o DHT22
  * Rotary encoder
