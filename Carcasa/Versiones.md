@@ -1,6 +1,4 @@
-# Versión 0.2: Cierre módulo ESP
-
-
+# Versión 0.2: Encoder
  * Inserción y tamaño rueda
  * Ajuste USB
  * Anillo apoyo encoder
