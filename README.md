@@ -1,16 +1,17 @@
 # Enclosure3D
 [Cuartobe](https://www.cuartobe.ar/) se puso a diseñar un control de ambiente para un gabinete de impresión 3D, puede ver más novedades en sus redes [Instagram](https://www.instagram.com/cuartobe.ar) y [TikTok](https://www.tiktok.com/@cuartobe.ar).
 
-(Foto componentes)
+![Montaje](./Carcasa/Imagenes/Enclosure3D%20Carcasa%20horizontal.png)
+
 
  ### Componentes
- * NodeMCU 8266 (compatible con V2 y V3)
- * Display 0.91 oled
+ * NodeMCU ESP8266 (compatible con V2 y V3)
+ * Display 0.91" oled
  * Sensor de humedad y temperatura DHT11 o DHT22
  * Rotary encoder
 
 ## Parámetros técnicos
-* Dimensiones:  
+* Dimensiones: 105mm x 65mm x 33mm
 * Material: PLA
 * Alimentación: 12v CC
 * Consumo: 
