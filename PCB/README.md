@@ -19,3 +19,6 @@
 * Reset: 16 [D0]
 * Clock: 5  [D1]
 * Data:  4  [D2]
+
+![Componentes prototipos](./Enclosure3D%20Componentes%20prototipo.png)
+
