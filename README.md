@@ -36,3 +36,6 @@ id6["Encoder"]-->id1[Enclosure3D];
 id7["DHT"]-->id1[Enclosure3D];
 
 ```
+# Proyecto
+Es un proyecto Openfirmware en el cual se puede desarrollar sobre la arquitectura del ESP8266. Para saber más sobre el código puedes ver y descargartelo desde la 
+[sección de firmware](./Firmware/README.md) y si lo que más te gusta es diseñar, puedes proponer la próxima versión de la carcaza en la [sección de carcasa](./Carcasa/README.md).
