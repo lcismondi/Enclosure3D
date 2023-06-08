@@ -186,3 +186,8 @@ Determina el nivel de potencia aplicada al sistema de ventilación.
 
 # Releases
 Para ver las características de cada una de las versiones ir a [Versiones.md](./Versiones.md)
+
+# Puertos
+Para entender un poco más qué controla cada uno de los puertos de salida, probablemente quieras ver un poco más sobre el [diseño del PCB](../PCB/README.md).
+
+
