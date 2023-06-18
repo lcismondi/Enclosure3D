@@ -1,6 +1,6 @@
 # Explotada
 
-(imagen)
+![Explotada](./Anclajes/Carcasa%20Enclosure3D%20explotada%201.png)
 
 # Soportes
 La carcaza principal tiene la posibilidad de diseñar múltiples soportes a la medida y a la necesidad de la ocación, solo es necesario respetar los parámetros de colocación de los tornillos.
