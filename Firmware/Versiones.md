@@ -1,4 +1,18 @@
-# V0.2: mcu esp8266
+# v0.4: Modo ripple
+ * Modo riple ventiladores 0 - 100% (por el ruido de oscilacion)
+ * [Bug rebote encoder](./Bug%20rebote%20rotary%20encoder.md.md)
+
+# V0.3: Apagado
+ * Longpress por tiempo en vez de pulsos
+ * Longpress apagado
+ * Pantalla alarma
+ * Presionar botón para despertar sin acción menú
+ * Bug longitud de memoria
+ * Bug control progresivo
+ * Bug control de potencia cooler
+ * Despertar al cambiar la potencia
+
+# V0.2: MCU esp8266
  * Eeprom update float
  * Rotary debounce
  * Bug commit eeprom
