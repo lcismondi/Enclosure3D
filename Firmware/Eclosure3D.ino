@@ -13,7 +13,12 @@
 
 #define DHTPIN 2
 
-#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
+#define DHTTYPE DHT11     // DHT 11S
+//#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
+
+
+//DHT11   0 < Temperatura < 50°C | 20 < humedad <  90 %
+//DHT22 -40 < Temperatura < 80°C |  0 < humedad < 100 %
 
 /*  Utiliza el valor de GPIO
 
@@ -75,21 +80,26 @@ int lastStateCLK;
 unsigned long lastButtonPress = 0;        //Antirebote botón al presionar
 unsigned long lastButtonRelease = 0;      //Antirebote botón al soltar
 unsigned long lastRotaryEncoder = 0;      //Antirebote rotary
+unsigned long displayTime = 0;            //Tiempo de rotador de pantalla
 unsigned long tiempoInicio = 0;           //Base de tiempo del reloj
 unsigned long tiempoEncendido = 0;        //Sleep mode
+unsigned long countLongPress = 0;         //Tiempo botón presionado
+unsigned long tiempoAlarma = 0;           //Duración de la alarma
+//unsigned long simuPower = 0;              //Reloj simulación potencia
 
-bool upClk     = LOW;
-bool downClk   = LOW;
+bool upClk     = LOW;                   //Rotación encoder
+bool downClk   = LOW;                   //Rotación encoder
 bool newBtn    = LOW;                   //Flag de presión de botón
 bool oldBtn    = HIGH;                  //Flag de liberación de botón
-bool flagTimer = LOW;
+bool flagTimer = LOW;                   //Suma 1 segundo o 30 segundos
+bool alarma    = LOW;                   //Código de alarma
 
-unsigned long displayTime = 0;          //Tiempo de rotador de pantalla
+
 int cursorMenu = 0;                     //Indicador menú o carrusel
 int cursorDisplay = 0;                  //Indicador de pantalla rotativa
 int cursorLvl1 = 0;                     //Indicador menú general
 int cursorLvl2 = 1;                     //Indicador submenú siempre inicia en 1
-int countLongPress = 0;                 //Tiempo botón presionado
+
 
 
 //**********************************************************************
@@ -107,7 +117,7 @@ const String menu [][submenuLength] = {
   {"Salir"}
 };
 
-const int menuLength = sizeof(menu) / sizeof(menu[0][0]) / submenuLength;
+const int menuLength = (sizeof(menu) / sizeof(menu[0][0]) / submenuLength);
 
 float menuVal[menuLength] [submenuLength] = {}; //SE PUEDE COMPLETAR CON LAS VARIABLES?
 /*
@@ -158,12 +168,13 @@ int lightStep = 10;                     //Pasos del dial de luz
 //**********************************************************************
 //                          Configuraciones
 //**********************************************************************
-int line0 = 10;             //Primer linea de texto display
-int line1 = 21;             //Segunda linea de texto display
-int line2 = 32;             //Tercera linea de texto display
-int displayRow = 121;       //Flechas de navegación
-int eeAddress = 100;        //Location we want the data to be put.
+int line0 = 10;                 //Primer linea de texto display
+int line1 = 21;                 //Segunda linea de texto display
+int line2 = 32;                 //Tercera linea de texto display
+int displayRow = 121;           //Flechas de navegación
+int eeAddress = 100;            //Location we want the data to be put.
 const int eeOffset = eeAddress; //Dirección desde donde comienza la memoria
+unsigned int sleepTime = 600000;//Tiempo para que entre en suspención
 
 //**********************************************************************
 //                          Prototipos
@@ -178,6 +189,7 @@ void printAntihorario (void);
 void printBoton (void);
 void progresivo(byte);
 void power(void);
+void softPWM(int);
 
 
 
@@ -222,8 +234,20 @@ void setup() {
 
   delay(100);
 
+  Serial.println("");
+  //Cálculo tamaño de memoria
+  Serial.println("Tamaño memoria: ");
+  Serial.print("Menu: ");
+  Serial.println(sizeof(menu));
+  Serial.print("Menu[0][0]: ");
+  Serial.println(sizeof(menu[0][0]));
+  Serial.print("submenuLength: ");
+  Serial.println(submenuLength);
+  Serial.print("menuLength: ");
+  Serial.println(menuLength);
+  Serial.println("");
   Serial.println("Cargando memoria: ");
-  for (int i = 0; i < menuLength; i++) {
+  for (int i = 0; i < menuLength - 1; i++) {
     for (int j = 0; j < submenuLength; j++)
     {
       EEPROM.get(eeAddress, menuVal[i][j]);
@@ -242,6 +266,13 @@ void setup() {
     Serial.println("Advertencia error overflow memoria EEPROM");
   }
 
+  /*
+    if( isnan(menuVal[i][j]) || menuVal[i][j]))
+    {
+    //Terminar de definir inicialización
+    }
+  */
+
   display.setContrast(menuVal[5][3]);
   lightPWM = menuVal[3][3];
   analogWrite(LUZ, lightPWM);
@@ -259,6 +290,12 @@ void setup() {
 
   }
 
+
+  //Prueba de potencia
+  //menuVal[0][0] = 0;
+  //Prueba reconocimiento de sensor humedad
+
+  Serial.println(DHTTYPE);
 
 }
 
@@ -355,20 +392,27 @@ void loop() {
     //button has been pressed, released and pressed again
     if (millis() - lastButtonPress > 50) {
 
-      newBtn = HIGH;
-      oldBtn = LOW;
-      countLongPress = 0;
-      tiempoEncendido = millis();
+      //Suspención 10 minutos 600000 milisegundos
+      if ( millis() - tiempoEncendido >= sleepTime)
+      {
+        //Enciende
+        //display.setPowerSave(LOW);
+        tiempoEncendido = millis();
+      }
+      else
+      {
+        newBtn = HIGH;
+        oldBtn = LOW;
+        countLongPress = millis();
+        tiempoEncendido = millis();
+      }
+
+
 
     }
     // Remember last button press event
     lastButtonPress = millis();
 
-  }
-  if (btnState == LOW)
-  {
-    countLongPress++;
-    //Serial.println(countLongPress);
   }
 
   //Si detecta señal HIGH, el botón se liberó
@@ -410,15 +454,12 @@ void loop() {
           String dos = String("Humedad   ") + String((int)menuVal[0][4]) + String("%");
           String tres = String("Velocidad ") + String(map(menuVal[2][3], 0, 255, 0, 100)) + String("%");
 
-
-
           renglones(uno, dos, tres, 3);
 
         }
         else if (cursorDisplay == 1)
         {
           cursorDisplay = 0;
-
           display2();
 
         }
@@ -429,10 +470,18 @@ void loop() {
         display2();
 
       }
+      else if (cursorDisplay == 2)
+      {
 
+        display.clearBuffer();
+        display.setCursor(20, line1);
+        display.print("ALARMA!!!!");
+        display.sendBuffer();
+
+      }
 
       //Al rotar el dial cambia la luz
-      if (upClk == HIGH)
+      if (upClk == HIGH && cursorDisplay <= 2)
       {
         cursorDisplay = 1;
         displayTime = millis();
@@ -448,7 +497,7 @@ void loop() {
         display2();
         analogWrite(LUZ, lightPWM);
       }
-      else if (downClk == HIGH)
+      else if (downClk == HIGH && cursorDisplay <= 2)
       {
         cursorDisplay = 1;
         displayTime = millis();
@@ -465,18 +514,72 @@ void loop() {
         analogWrite(LUZ, lightPWM);
       }
 
-      //Al presionar el botón entra al menú
-      if (newBtn == HIGH)
+      //Al presionar el botón actúa la primer etapa
+      //Cambia la lógica de control en nivel tres actúa al soltar por long press
+      if (newBtn == HIGH && oldBtn == HIGH)
       {
-        newBtn = LOW;
-        cursorMenu++;
-        //Falta condición de volver
-        String uno = menu[cursorLvl1][0];
-        String dos = menu[cursorLvl1 + 1][0];
-        String tres = menu[cursorLvl1 + 2][0];
-        renglones(uno, dos, tres, 0);
-        printBoton();
 
+        newBtn = LOW;
+        oldBtn = LOW;
+        //Serial.print("Short press ");
+        //Serial.println(millis() - countLongPress);
+        //countLongPress = 0;
+
+        //Apagado de pantalla y puertos
+        if (millis() - countLongPress >= 1500)
+        {
+          if (cursorDisplay <= 2)
+          {
+            cursorDisplay = 3;
+            display.clearBuffer();
+            display.setCursor(20, line1);
+            display.print("Apagando...");
+            display.sendBuffer();
+            Serial.println("");
+            delay(500);
+            analogWrite(VT1, 0);
+            delay(500);
+            analogWrite(VT2, 0);
+            delay(500);
+            analogWrite(LUZ, 0);
+            delay(500);
+            display.setPowerSave(HIGH);
+          }
+          else {
+
+            cursorDisplay = 0;
+            display.setPowerSave(LOW);
+            display.clearBuffer();
+            display.setCursor(20, line1);
+            display.print("Iniciando...");
+            display.sendBuffer();
+            Serial.println(" ");
+            Serial.println(" ");
+            Serial.println("Iniciando...");
+            delay(500);
+            tiempoInicio = millis();
+
+          }
+        }
+        //Al presionar el botón entra al menú
+        else if (cursorDisplay <= 2)
+        {
+          newBtn = LOW;
+          cursorMenu++;
+          //Falta condición de volver
+          String uno = menu[cursorLvl1][0];
+          String dos = menu[cursorLvl1 + 1][0];
+          String tres = menu[cursorLvl1 + 2][0];
+          renglones(uno, dos, tres, 0);
+          printBoton();
+
+        }
+        else if (cursorDisplay == 2)
+        {
+          newBtn = LOW;
+          cursorDisplay = 0;
+
+        }
       }
 
       break;
@@ -911,7 +1014,7 @@ void loop() {
         newBtn = LOW;
         oldBtn = LOW;
         Serial.print("Short press ");
-        Serial.println(countLongPress);
+        Serial.println(millis() - countLongPress);
         //countLongPress = 0;
 
         //Reset tiempo
@@ -948,7 +1051,7 @@ void loop() {
           //menuVal[1][0] = -
           menuVal[1][0] = 0;
           //menuVal[1][1] = Modo reloj (Off/Cronometro/Temporizador)
-          menuVal[1][1] = 2;
+          menuVal[1][1] = 1;
           //menuVal[1][2] = Tiempo en milisegundos
           menuVal[1][2] = 0;
           //menuVal[1][3] = Reinicio
@@ -999,7 +1102,7 @@ void loop() {
           eeAddress = eeOffset;
 
           Serial.println("Reinicio a modo de fábrica");
-          for (int i = 0; i < menuLength; i++) {
+          for (int i = 0; i < menuLength - 1; i++) {
             for (int j = 0; j < submenuLength; j++)
             {
               EEPROM.put(eeAddress, menuVal[i][j]);
@@ -1043,14 +1146,14 @@ void loop() {
           printBoton();
 
         }
-        //Tiempo reloj Long press 2 segundos prácticos 3 segundos de usuario
-        else if (cursorLvl1 == 1 && cursorLvl2 == 2 && countLongPress >= 500)
+        //Tiempo reloj Long press 1.5 segundos prácticos 3 segundos de usuario
+        else if (cursorLvl1 == 1 && cursorLvl2 == 2 && (millis() - countLongPress) >= 1500)
         {
 
           flagTimer = !flagTimer;
 
           Serial.print("Long Press ");
-          Serial.println(countLongPress);
+          Serial.println(millis() - countLongPress);
           displayLvl3(cursorLvl1, cursorLvl2);
 
         }
@@ -1177,79 +1280,118 @@ void loop() {
 
   }
 
-  //**********************************************************************
-  //**********************************************************************
-  //                          Lógica de control
-  //**********************************************************************
-  //**********************************************************************
+  //Funciona solo cuando no está apagado cursorDisplay == 3
+  if (cursorDisplay <= 2) {
 
-  //Suspención 10 minutos 600000 milisegundos
-  if ( millis() - tiempoEncendido >= 600000)
-  {
-    //Apagado
-    display.setPowerSave(HIGH);
-    //Todas las acciones de activacación deben resetear la base de tiempo
-    //tiempoEncendido = millis(); para reanudar
-  }
-  else
-  {
-    display.setPowerSave(LOW);
-  }
+    //**********************************************************************
+    //**********************************************************************
+    //                          Lógica de control
+    //**********************************************************************
+    //**********************************************************************
 
-
-  //**********************************************************************
-  //                          Control ventiladores
-  //**********************************************************************
-
-  //Modo manual
-  if (menuVal[2][1] == 0)
-  {
-    //Función simultaneo
-    if (menuVal[2][2] == 0)
+    //Suspención 10 minutos 600000 milisegundos
+    if ( millis() - tiempoEncendido >= sleepTime)
     {
-      analogWrite(VT1, menuVal[2][3]);
-      analogWrite(VT2, menuVal[2][3]);
+      //Apagado
+      display.setPowerSave(HIGH);
+      //Todas las acciones de activacación deben resetear la base de tiempo
+      //tiempoEncendido = millis(); para reanudar
     }
-    //Función progresivo
-    else if (menuVal[2][2] == 1)
+    else
     {
-
-      progresivo((byte)menuVal[2][3]);
-
+      display.setPowerSave(LOW);
     }
-  }
-  //Modo automático
-  else if (menuVal[2][1] == 1)
-  {
-    //Función simultaneo
-    if (menuVal[2][2] == 0)
-    {
 
-      power();
-      analogWrite(VT1, menuVal[2][3]);
-      analogWrite(VT2, menuVal[2][3]);
+
+    //**********************************************************************
+    //                          Control ventiladores
+    //**********************************************************************
+
+    //Modo manual
+    if (menuVal[2][1] == 0)
+    {
+      //Función progresivo
+      if (menuVal[2][2] == 0)
+      {
+
+        progresivo((byte)menuVal[2][3]);
+
+      }
+      //Función simultaneo
+      else if (menuVal[2][2] == 1)
+      {
+        analogWrite(VT1, menuVal[2][3]);
+        analogWrite(VT2, menuVal[2][3]);
+      }
 
     }
-    //Función progresivo
-    else if (menuVal[2][2] == 1)
+    //Modo automático
+    else if (menuVal[2][1] == 1)
     {
-      power();
-      progresivo((byte)menuVal[2][3]);
+      //Función progresivo
+      if (menuVal[2][2] == 0)
+      {
+        power();
+        progresivo((byte)menuVal[2][3]);
+        //Simulación de potencia
+        /*if (millis() - simuPower  >= 1000)
+          {
+          //Valores simulación
+          Serial.print("Temperatura: ");
+          Serial.println(menuVal[0][0]);
+          Serial.print("Potencia: ");
+          Serial.println((byte)menuVal[2][3]);
+          //Serial.print("Temperatura: ");
+          //Serial.println();
+          Serial.println("");
+
+          simuPower = millis();
+          menuVal[0][0]++;
+          if (menuVal[0][0] > 60)
+          {
+            menuVal[0][0] = 0;
+          }
+          }*/
+      }
+      //Función simultaneo
+      else if (menuVal[2][2] == 1)
+      {
+
+        power();
+        analogWrite(VT1, menuVal[2][3]);
+        analogWrite(VT2, menuVal[2][3]);
+
+      }
     }
+
+    //**********************************************************************
+    //                            Control alarmas
+    //**********************************************************************
+
+    if (alarma == HIGH)
+    {
+      cursorDisplay = 2;
+
+      //Modo reloj
+      if (menuVal[1][1] == 0)
+      {
+      }
+      //Modo cronometro
+      else if (menuVal[1][1] == 1)
+      {
+      }
+      //Modo temporizador
+      else if (menuVal[1][1] == 2)
+      {
+      }
+
+    }
+    //analogWrite(LUZ,menuVal[3][3]); //Debería ser lightPWM
+
+
+
+
   }
-
-  //**********************************************************************
-  //                            Control alarmas
-  //**********************************************************************
-
-  
-
-
-  //analogWrite(LUZ,menuVal[3][3]); //Debería ser lightPWM
-
-
-
-
 }
 
 //**********************************************************************
@@ -1276,7 +1418,7 @@ void display2 (void)
     //                               OFF
     //*********************************************************************
 
-    uno  = String("Reloj ") + String("00:00:00") + String("hs");
+    uno  = String("Hora ") + String("00:00:00") + String("hs");
 
   }
   else if (menuVal[1][1] == 1)
@@ -1287,15 +1429,16 @@ void display2 (void)
 
     reloj = millis() - tiempoInicio;
 
-    if (millis() - tiempoInicio >= menuVal[1][2])
+    int horas = (int) (reloj / 1000 / 60 / 60);
+
+    if (horas > 99)
     {
       //ALARMA!!!!
-      uno  = String("Crono ") + String("00:00:00") + String("hs");
+      uno  = String("Crono ") + String("99:00:00") + String("hs");
+      alarma = 1;
     }
     else {
       uno  = String("Crono ");
-
-      int horas = (int) (reloj / 1000 / 60 / 60);
 
       if (horas < 10)
       {
@@ -1345,6 +1488,7 @@ void display2 (void)
     {
       //ALARMA!!!!
       uno  = String("Tempo ") + String("00:00:00") + String("hs");
+      alarma = 1;
     }
     else {
 
@@ -1696,22 +1840,24 @@ void displayLvl3(int cursorLvl1, int cursorLvl2)
 //**********************************************************************
 
 
-void progresivo(byte power) {
+void progresivo(byte powerVal) {
 
   //Hasta un 30%
-  if (power < 76)
+  if (powerVal < 76)
   {
-    analogWrite(VT1, menuVal[2][3]);
+    analogWrite(VT1, powerVal);
+    analogWrite(VT2, 0);
   }
   //Hasta un 70%
-  else if (power < 187)
+  else if (powerVal < 187)
   {
-    analogWrite(VT2, menuVal[2][3]);
+    analogWrite(VT1, 0);
+    analogWrite(VT2, powerVal);
   }
   else
   {
-    analogWrite(VT1, menuVal[2][3]);
-    analogWrite(VT2, menuVal[2][3]);
+    analogWrite(VT1, powerVal);
+    analogWrite(VT2, powerVal);
   }
 
 }
@@ -1728,32 +1874,45 @@ void power(void) {
   byte error = 0;
 
   //Por debajo del riple
-  //Temperatura medida - Temperatura seleccionada - Ripple)
-  if ((menuVal[0][0] - menuVal[0][1] - menuVal[0][2]) <= 0 )
+  //Temperatura medida <= Temperatura seleccionada - Ripple
+  if ((menuVal[0][0] <= menuVal[0][1] - menuVal[0][2]))
   {
     error = 0;
   }
   //Por debajo del setpoint
-  //(Temperatura seleccionada - Temperatura medida) <= Ripple
-  else if ((menuVal[0][1] - menuVal[0][0]) <= menuVal[0][2])
+  //Temperatura medida <= Temperatura seleccionada
+  else if (menuVal[0][0] <= menuVal[0][1])
   {
     //De 0 a 50% ( 0 a 127)
     //(riple - (Temperatura seleccionada - Temperatura medida))/riple)
     error = ((menuVal[0][2] - (menuVal[0][1] - menuVal[0][0])) / menuVal[0][2]) * 127;
+    tiempoEncendido = millis();
   }
   //Por sobre el setpoint
-  else if ((menuVal[0][0] - menuVal[0][1]) <= 2 * menuVal[0][2])
+  //Temperatura medida <= (Temperatura seleccionada + Ripple)
+  else if (menuVal[0][0] <=  (menuVal[0][1] + menuVal[0][2]))
   {
     //De 51 a 100% ( 128 a 255)
     error = ((menuVal[0][2] - (menuVal[0][1] - menuVal[0][0])) / menuVal[0][2]) * 127;
+    tiempoEncendido = millis();
   }
   //Por sobre el riple
+  //Temperatura seleccionada + Ripple <= Temperatura medida
   else
   {
     error = 255;
+    tiempoEncendido = millis();
   }
 
   menuVal[2][3] = error;
+
+}
+
+void softPWM(int)
+{
+
+//se puede hacer uno general o por cada puerto?
+
 
 }
 
