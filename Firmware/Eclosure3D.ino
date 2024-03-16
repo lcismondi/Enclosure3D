@@ -71,12 +71,6 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C display(U8G2_R0, /* reset=*/16, /* clock=
 
 DHT dht(DHTPIN, DHTTYPE);
 
-int counter = 0;
-int currentStateCLK;
-int currentStateDT;
-int lastStateCLK;
-int lastStateDT;
-
 //String currentDir = "";
 unsigned long lastButtonPress = 0;    //Antirebote botón al presionar
 unsigned long lastButtonRelease = 0;  //Antirebote botón al soltar
@@ -89,13 +83,23 @@ unsigned long countLongPress = 0;     //Tiempo botón presionado
 //unsigned long simuPower = 0;              //Reloj simulación potencia
 
 bool flagCLK;
-bool upClk = LOW;      //Rotación encoder
-bool downClk = LOW;    //Rotación encoder
-bool newBtn = LOW;     //Flag de presión de botón
-bool oldBtn = HIGH;    //Flag de liberación de botón
-bool flagTimer = LOW;  //Suma 1 segundo o 30 segundos
-bool alarma = LOW;     //Código de alarma
+bool flagPress = LOW;        //Flag de presión de botón
+bool flagRelease = LOW;      //Flag de liberación de botón
+bool flagLongpress = LOW;    //Flag de presión larga
+bool activeLongpress = LOW;  //Flag de activación presión larga
+bool upClk = LOW;            //Rotación encoder
+bool downClk = LOW;          //Rotación encoder
+bool newBtn = LOW;           //Flag de presión de botón
+bool oldBtn = HIGH;          //Flag de liberación de botón
+bool flagTimer = LOW;        //Suma 1 segundo o 30 segundos
+bool alarma = LOW;           //Código de alarma
 
+int counter = 0;
+int currentStateCLK;
+int currentStateDT;
+int lastStateCLK;
+int lastStateDT;
+int lastStateBTN = HIGH;
 
 int cursorMenu = 0;     //Indicador menú o carrusel
 int cursorDisplay = 0;  //Indicador de pantalla rotativa
@@ -293,8 +297,7 @@ void setup() {
   //Prueba de potencia
   //menuVal[0][0] = 0;
   //Prueba reconocimiento de sensor humedad
-
-  Serial.println(DHTTYPE);
+  //Serial.println(DHTTYPE);
 }
 
 void loop() {
@@ -316,7 +319,6 @@ void loop() {
 
     flagCLK = LOW;
     lastStateCLK = currentStateCLK;
-
   }
 
   if (flagCLK == HIGH) {
@@ -342,8 +344,7 @@ void loop() {
       }
     }
 
-  }
-  else{
+  } else {
     lastRotaryEncoder = millis();
     lastStateDT = currentStateDT;
   }
@@ -359,38 +360,70 @@ void loop() {
   int btnState = digitalRead(SW);
 
   //If we detect LOW signal, button is pressed
-  if (btnState == LOW && newBtn == LOW) {
+  if (btnState == LOW && lastStateBTN == HIGH) {
     //if 50ms have passed since last LOW pulse, it means that the
     //button has been pressed, released and pressed again
     if (millis() - lastButtonPress > 50) {
 
+      //Si la pantalla está apagada resetea el tiempo para que la encienda
       //Suspención 10 minutos 600000 milisegundos
       if (millis() - tiempoEncendido >= sleepTime) {
         //Enciende
         //display.setPowerSave(LOW);
         tiempoEncendido = millis();
       } else {
-        newBtn = HIGH;
-        oldBtn = LOW;
+        flagPress = HIGH;
+        flagLongpress = HIGH;
+        activeLongpress = LOW;
+        //flagRelease = LOW;
         countLongPress = millis();
         tiempoEncendido = millis();
       }
+
+    } else {
+      lastStateBTN = btnState;
     }
+
     // Remember last button press event
     lastButtonPress = millis();
   }
-
-  //Si detecta señal HIGH, el botón se liberó
-  if (btnState == HIGH && oldBtn == LOW) {
+  //Si detecta señal HIGH y antes estaba presionado, el botón se liberó
+  else if (btnState == HIGH && lastStateBTN == LOW) {
     //if 50ms have passed since last LOW pulse, it means that the
     //button has been pressed, released and pressed again
     if (millis() - lastButtonRelease > 50) {
-
-      oldBtn = HIGH;
+      flagRelease = HIGH;
+      flagLongpress = LOW;
+    } else {
+      lastStateBTN = btnState;
     }
-    // Remember last button press event
+    // Remember last button release event
     lastButtonRelease = millis();
+  } else {
+
+    lastStateBTN = btnState;
   }
+
+
+  //Efectos sobre el botón
+  if (flagPress == HIGH) {
+    //flagPress = LOW;
+    Serial.println("Button pressed!");
+  }
+  if (flagRelease == HIGH && activeLongpress == LOW) {
+    //flagRelease = LOW;
+    Serial.print("Button released! ");
+    Serial.print(millis() - countLongPress);
+    Serial.println(" mseg");
+  }
+  if (flagLongpress == HIGH) {
+    if (millis() - countLongPress > 3000) {
+      //flagLongpress = LOW;
+      //activeLongpress = HIGH;
+      Serial.println("Button pressed > 3seg");
+    }
+  }
+
 
 
   //**********************************************************************
@@ -458,18 +491,43 @@ void loop() {
         analogWrite(LUZ, lightPWM);
       }
 
-      //Al presionar el botón actúa la primer etapa
-      //Cambia la lógica de control en nivel tres actúa al soltar por long press
-      if (newBtn == HIGH && oldBtn == HIGH) {
+      //Efectos sobre el botón
+      //Presiona
+      if (flagPress == HIGH) {
+        flagPress = LOW;
+      }
+      //Suelta
+      if (flagRelease == HIGH && activeLongpress == LOW) {
+        flagRelease = LOW;
+        //Serial.print("Button released! ");
+        //Serial.print(millis() - countLongPress);
+        //Serial.println(" mseg");
 
-        newBtn = LOW;
-        oldBtn = LOW;
-        //Serial.print("Short press ");
-        //Serial.println(millis() - countLongPress);
-        //countLongPress = 0;
+        if (cursorDisplay <= 2) {
+          newBtn = LOW;
+          cursorMenu++;
+          //Falta condición de volver
+          String uno = menu[cursorLvl1][0];
+          String dos = menu[cursorLvl1 + 1][0];
+          String tres = menu[cursorLvl1 + 2][0];
+          renglones(uno, dos, tres, 0);
+          printBoton();
 
-        //Apagado de pantalla y puertos
-        if (millis() - countLongPress >= 1500) {
+        } else if (cursorDisplay == 2) {
+          newBtn = LOW;
+          cursorDisplay = 0;
+        }
+      } else {
+        flagRelease = LOW;
+      }
+      //Mantiene
+      if (flagLongpress == HIGH) {
+        if (millis() - countLongPress > 3000) {
+          flagLongpress = LOW;
+          activeLongpress = HIGH;
+          //Serial.println("Button pressed > 3seg");
+
+          //Si está encendido lo apaga
           if (cursorDisplay <= 2) {
             cursorDisplay = 3;
             display.clearBuffer();
@@ -486,7 +544,7 @@ void loop() {
             delay(500);
             display.setPowerSave(HIGH);
           } else {
-
+            //Si está en standby lo enciende
             cursorDisplay = 0;
             display.setPowerSave(LOW);
             display.clearBuffer();
@@ -499,21 +557,6 @@ void loop() {
             delay(500);
             tiempoInicio = millis();
           }
-        }
-        //Al presionar el botón entra al menú
-        else if (cursorDisplay <= 2) {
-          newBtn = LOW;
-          cursorMenu++;
-          //Falta condición de volver
-          String uno = menu[cursorLvl1][0];
-          String dos = menu[cursorLvl1 + 1][0];
-          String tres = menu[cursorLvl1 + 2][0];
-          renglones(uno, dos, tres, 0);
-          printBoton();
-
-        } else if (cursorDisplay == 2) {
-          newBtn = LOW;
-          cursorDisplay = 0;
         }
       }
 
@@ -539,11 +582,14 @@ void loop() {
           printAntihorario();
         }
       }
-      //Al presionar el botón entra al submenú
-      if (newBtn == HIGH) {
-        newBtn = LOW;
+
+      //Efectos sobre el botón
+      if (flagPress == HIGH) {
+        flagPress = LOW;
+        //Serial.println("Button pressed!");
 
         if (menu[cursorLvl1][0] == "Salir") {
+          activeLongpress = HIGH;
           cursorMenu--;
           cursorLvl1 = 0;
           displayLvl1(cursorLvl1);
@@ -562,6 +608,12 @@ void loop() {
           printBoton();
         }
       }
+      if (flagRelease == HIGH && activeLongpress == LOW) {
+        flagRelease = LOW;
+      } else {
+        flagRelease = LOW;
+      }
+
 
       break;
 
@@ -585,9 +637,11 @@ void loop() {
           printAntihorario();
         }
       }
-      //Al presionar el botón entra al submenú
-      if (newBtn == HIGH) {
-        newBtn = LOW;
+
+      //Efectos sobre el botón
+      if (flagPress == HIGH) {
+        flagPress = LOW;
+        //Serial.println("Button pressed!");
 
         if (menu[cursorLvl1][cursorLvl2] == "Volver") {
           cursorMenu--;
@@ -596,12 +650,16 @@ void loop() {
           printBoton();
         } else {
           cursorMenu++;
+          activeLongpress = HIGH;
           displayLvl3(cursorLvl1, cursorLvl2);
           printBoton();
         }
       }
-
-
+      if (flagRelease == HIGH && activeLongpress == LOW) {
+        flagRelease = LOW;
+      } else {
+        flagRelease = LOW;
+      }
       break;
 
 
@@ -852,15 +910,15 @@ void loop() {
         displayLvl3(cursorLvl1, cursorLvl2);
       }
 
-      //Al presionar el botón actúa la primer etapa
-      //Cambia la lógica de control en nivel tres actúa al soltar por long press
-      if (newBtn == HIGH && oldBtn == HIGH) {
-
-        newBtn = LOW;
-        oldBtn = LOW;
-        Serial.print("Short press ");
-        Serial.println(millis() - countLongPress);
-        //countLongPress = 0;
+      //Efectos sobre el botón
+      if (flagPress == HIGH) {
+        flagPress = LOW;
+      }
+      if (flagRelease == HIGH && activeLongpress == LOW) {
+        flagRelease = LOW;
+        Serial.print("Button released! ");
+        Serial.print(millis() - countLongPress);
+        Serial.println(" mseg");
 
         //Reset tiempo
         if (cursorLvl1 == 1 && cursorLvl2 == 3 && modoSINO[(int)menuVal[cursorLvl1][cursorLvl2]] == "SI") {
@@ -985,16 +1043,6 @@ void loop() {
           printBoton();
 
         }
-        //Tiempo reloj Long press 1.5 segundos prácticos 3 segundos de usuario
-        else if (cursorLvl1 == 1 && cursorLvl2 == 2 && (millis() - countLongPress) >= 1500) {
-
-          flagTimer = !flagTimer;
-
-          Serial.print("Long Press ");
-          Serial.println(millis() - countLongPress);
-          displayLvl3(cursorLvl1, cursorLvl2);
-
-        }
         //Para el resto de las variables solo guarda su valor
         else {
 
@@ -1096,6 +1144,21 @@ void loop() {
               }
               }
           */
+        }
+      }
+      else{
+        flagRelease = LOW;
+      }
+      if (flagLongpress == HIGH) {
+        if (millis() - countLongPress > 3000) {
+          flagLongpress = LOW;
+          activeLongpress = HIGH;
+          Serial.println("Button pressed > 3seg");
+          if (cursorLvl1 == 1 && cursorLvl2 == 2) {
+
+            flagTimer = !flagTimer;
+            displayLvl3(cursorLvl1, cursorLvl2);
+          }
         }
       }
       break;
