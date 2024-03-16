@@ -1,6 +1,7 @@
 # v0.4: Modo ripple
  * Modo riple ventiladores 0 - 100% (por el ruido de oscilacion)
  * [Bug rebote encoder](./Bug%20rebote%20rotary%20encoder.md)
+ * Estandarización boton longpress
 
 # V0.3: Apagado
  * Longpress por tiempo en vez de pulsos
