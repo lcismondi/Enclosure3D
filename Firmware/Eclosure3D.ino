@@ -89,8 +89,6 @@ bool flagLongpress = LOW;    //Flag de presión larga
 bool activeLongpress = LOW;  //Flag de activación presión larga
 bool upClk = LOW;            //Rotación encoder
 bool downClk = LOW;          //Rotación encoder
-bool newBtn = LOW;           //Flag de presión de botón
-bool oldBtn = HIGH;          //Flag de liberación de botón
 bool flagTimer = LOW;        //Suma 1 segundo o 30 segundos
 bool alarma = LOW;           //Código de alarma
 
@@ -504,7 +502,6 @@ void loop() {
         //Serial.println(" mseg");
 
         if (cursorDisplay <= 2) {
-          newBtn = LOW;
           cursorMenu++;
           //Falta condición de volver
           String uno = menu[cursorLvl1][0];
@@ -514,7 +511,6 @@ void loop() {
           printBoton();
 
         } else if (cursorDisplay == 2) {
-          newBtn = LOW;
           cursorDisplay = 0;
         }
       } else {
