@@ -3,7 +3,7 @@
 Basado en el [MP2307](https://cdn-shop.adafruit.com/datasheets/MP2307_r1.9.pdf), la fuente tiene regulación de tensión de salida, por lo cual por seguridad se hace una modificación con el fin de dejar fija la tensión de salida en 5V. Esta tensión es la misma que alimenta el microcontrolador ESP8266.
 Originalmente el módulo tiene un divisor resistivo conformado por una resistencia de 8.2K y un potenciómetro.
 
-![Modulo](./modulo.png)
+![Modulo](./Imagenes/mini-360-5.jpg)
 
 La tensión de salida se regula según la siguiente ecuación:
 
