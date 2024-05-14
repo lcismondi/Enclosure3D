@@ -127,21 +127,43 @@ Para encenderlo se realiza el mismo procedimiento, se mantiene presionado el bot
 ### Stand by
 Si el equipo transcurre más de 10 minutos sin ninguna actividad en los movimientos del cursor y la temperatura ambiente por debajo del set point entra en un modo stand by en donde solo queda monitoreando el estado de la temperatura para volver a encerder si algún evento lo despierta, como puede ser que la temperatura supere el set point seleccionado.
 
-## Modo temporizador
+# Modos
+
+## Temperatura
+Aquí se puede configurar la _temperatura_ a partir de la cual el sistema controla el ambiente. Este parámetro trabaja en conjunto con el _riple_ el cual dará un rango de acción alrededor del valor de temperatura seleccionado. Dependiendo de la función de ventilación su comportamiento será distinto.
+Por último también se puede cambiar la unidad de °C a °F. El sistema recalcula los valores para mantener la compatibilidad.
+
+## Reloj
+Configuración del tiempo mostrado en la pantalla del carrusel.
+
+### Temporizador
 Al iniciar el equipo o al resetear el reloj (Reloj >> Reset) comienza a contar el tiempo en la pantalla del carrusel. Se puede elegir la base desde donde comienza a contar en el menú Rejoj >> Tiempo. Se utiliza la misma base de tiempo tanto para el temporizador y el cronómetro.
 
-## Modo cronómetro
+### Cronómetro
 De forma similar al modo temporizador, pero de manera inversa. Al iniciar el equipo o al resetear el reloj (Reloj >> Reset) comienza a contar el tiempo de forma descendente en la pantalla del carrusel. Se puede elegir la base desde donde comienza a contar en el menú Rejoj >> Tiempo.
 
-## Modo ventilación
+## Ventilación
 Puede ser manual o automático. En el modo manual se puede seleccionar la velocidad desde el menú (Ventilación >> Velocidad), la cual fija la velocidad de los ventiladores indistintamente de la temperatura que tenga en gabinete controlado.
 En caso de seleccionar automático, el sistema regula la velocidad de los ventiladores en función de la temperatura interna del gabinete, la seteada como referencia (set point) y el riple.
 Ambos modos se van a ver afectados por el tipo de función de ventilación seleccionada.
 
-## Funcion ventilación
-La función de ventilación busca disminuir el ruido ocacionado por los ventiladores. Existen dos formas de trabajo:
+La función de ventilación busca disminuir el ruido ocacionado por los ventiladores. Existen tres formas de trabajo:
 * Progresivo, a bajas potencias enciende solo un ventilador, a potencias medias enciende dos ventiladores y cuando requiere extraer mucho volumen termina encendiendo los tres ventiladores. Cada una de las etapas de encendido son escalonadas.
 * Simultáneo, en esta forma de trabajo se encienden los tres ventiladores juntos con el nivel de potencia requerido para garantizar la estabilida de la temperatura interna.
+* Riple, es una convinación de ambas anteriores pero utilizando solo 0% y 100% de potencia de cada ventilador, es decir, apagado o encendido. Esta función se utiliza para aquellos coolers que no soporten control por PWM y oscilen con ruido audible. 
+
+## Iluminación
+Al igual que desde el dial en el carrusel principal, desde este menú se puede regular la intensidad de la iluminación del gabinete, tanto encenderlo como apagarlo.
+_El modo alarma está en desarrollo y se relaciona con la configuración del temporizador al llegar a cero con indicadores lumínicos._
+
+## Wifi
+_En desarrollo (futuras versiones). El objetivo es que pueda dar avisos de intado y poder controlar/configurar el dispositivo desde una webapp._
+
+## Sistema
+Permite configurar algunas características del equipo.
+* Reinicio, vuelve a los parámetros de "modo de fábrica".
+* Encoder, configura la sencibilidad del dial de rotación.
+* Contraste, regula la visualización de la pantalla.
 
 ## Funciones
 
