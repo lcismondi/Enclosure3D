@@ -2,7 +2,7 @@
 Algunas mejoras y cambios al hardware del proyecto.
 
 ## V0.3: Fabricación
-* Diodo de protección fuente switching
+* [Diodo de protección fuente switching](../PCB/Fuente%20switching.md)
 * Etiquetas silkscrren
 * Fabricación PCBway
   
