@@ -1,6 +1,6 @@
 # Pinout
 
-![Componentes internos](./Enclosure3D%20Perspectiva%20Componentes.png)
+![Componentes internos](./Imagenes/Enclosure3D%20Perspectiva%20Componentes.png)
 
 ## Rotary encoder
 * Switch: 13 [D7]
@@ -20,5 +20,5 @@
 * Clock: 5  [D1]
 * Data:  4  [D2]
 
-![Componentes prototipos](./Enclosure3D%20Componentes%20prototipo.png)
+![Componentes prototipos](./Imagenes/Enclosure3D%20Componentes%20prototipo.png)
 
