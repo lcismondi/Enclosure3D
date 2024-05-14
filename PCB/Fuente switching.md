@@ -12,7 +12,7 @@ $V_{OUT}=0.925.\frac{R_1+R_2}{R_2}$
 Siendo R2 de 8.2K, el valor de la resistencia R1 debe ser de 36K, con lo que se obtienen 4.98V de salida.
 Al levemente inferior a 5V puede generar un recalentamiento de la fuente cuando se enchufa el puerto USB del kit de desarrollo.
 
-![Resistencia](./Imagenes/Mini%20360%20Resistencia.jpg)
+![schematico](./Imagenes/Mini%20360%20Resistencia.jpg)
 
 Con resistencias 1206 queda bien, pero también se podrá probar con 0805.
 
@@ -21,3 +21,7 @@ En caso de colocar un diodo de proyección a la salida, hay que tener en cuenta 
 $V_{OUT}=0.925.\frac{R_1+R_2}{R_2}=5.7V$
 
 Siendo R2 de 8.2K, el valor de la resistencia R1 debe ser de 42K, con lo que se obtienen 5.77V de salida.
+
+![Resistencia](./Imagenes/Mini%20360%20Resistencia.jpg)
+
+Información de desempeño de la fuente [en este link](https://www.matts-electronics.com/wp-content/uploads/2018/06/MINI-360.pdf)
