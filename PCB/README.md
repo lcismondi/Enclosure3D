@@ -22,3 +22,9 @@
 
 ![Componentes prototipos](./Imagenes/Enclosure3D%20Componentes%20prototipo.png)
 
+# Serigrafía
+La versión de fabricación industrial tiene la capa de silkscreen mejor diseñada.
+
+![Silkscreen top](./Imagenes/Enclosure3D%20silkscreen%20top.png)
+
+![Silkscreen bottom](./Imagenes/Enclosure3D%20silkscreen%20bottom.png)
