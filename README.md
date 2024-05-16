@@ -39,3 +39,17 @@ id7["DHT"]-->id1[Enclosure3D];
 # Proyecto
 Es un proyecto Openfirmware en el cual se puede desarrollar sobre la arquitectura del ESP8266. Para saber más sobre el código puedes verlo y descargarlo desde la 
 [sección de firmware](./Firmware/README.md) y si lo que más te gusta es diseñar, puedes proponer la próxima versión de la carcaza o personalizarla a tu propio estilo en la [sección de carcasa](./Carcasa/README.md).
+
+
+# Compatibilidad
+Como no todo sucede al mismo tiempo y en el mismo orden, veamos qué cosa es compatible con qué.
+
+| [Firmware](./Firmware/Versiones.md) | [PCB](./PCB/VersionPCB.md)  | [Carcasa](./Carcasa/Versiones.md)  | Software |
+| :--: | :--: | :--: | :--: |
+| 0.0 | 0.0 | 0.0 | - |
+| 0.1 | 0.1 | 0.1 | - |
+| 0.2 | 0.2 | 0.2 | - |
+| 0.3 | 0.3 | 0.2 | - |
+| 0.4 | 0.3 | 0.2 | - |
+| - | - | - | - |
+
