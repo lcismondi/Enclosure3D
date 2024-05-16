@@ -1,0 +1,1 @@
+El objetivo es lograr una versión que se pueda administrar desde el dispositivo movil sin necesidad de tener una aplicaciones previamente instalada. Mediante websockets y una webapp almacenada en el microcontrolador, conectarse al hotspot del esp8266 y tener los mismo parámetros de configuración que desde el dial.
